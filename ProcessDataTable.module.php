@@ -9,7 +9,7 @@ require_once __DIR__ . '/TemplateGenerator.php';
  * in a table within the admin area.
  *
  * @author frameless Media
- * @version 0.0.3-beta
+ * @version 0.0.4-beta
  * @license MIT
  */
 class ProcessDataTable extends Process {
@@ -24,7 +24,7 @@ class ProcessDataTable extends Process {
 	public static function getModuleInfo() {
 		return [
 			'title'      => 'ProcessDataTable',
-			'version'    => '0.0.3-beta',
+			'version'    => '0.0.4-beta',
 			'summary'    => 'Display selected fields of a template in a backend table.',
 			'author'     => 'frameless Media',
 			'autoload'   => true,
