@@ -1,0 +1,57 @@
+<?php
+/**
+ * Output template for field: Itemcount
+ * Fieldtype: WireData
+ * Available variable: $value
+ */
+
+if($data = $value->getArray()){
+	 if(isset($data['details']['cartData']['items']) && is_array($data['details']['cartData']['items'])) {
+		$amount = 0;
+		foreach($data['details']['cartData']['items'] as $item) {
+			// safeguard in case title is missing
+			$amount += $item['amount'];
+		}
+		echo $amount;
+	}
+ }
+ else echo $data;
+ 
+ --------------------
+ 
+ 
+ <?php
+ /**
+ <?php namespace ProcessWire;
+ /**
+  * Field template for “meta” values, but if there’s a cartData.items array,
+  * only output the item titles.
+  *
+  * @param mixed $value  WireDataDB, WireData, array, or scalar.
+  */
+ 
+ if($data = $value->getArray()){
+	 if(isset($data['details']['cartData']['items']) && is_array($data['details']['cartData']['items'])) {
+		foreach($data['details']['cartData']['items'] as $item) {
+			// safeguard in case title is missing
+			$title = isset($item['title']) ? htmlentities($item['title']) : '(no title)';
+			echo "{$title}<br>";
+		}
+	}
+ }
+ else echo $data;
+
+
+
+------------------------
+
+
+<?php
+/**
+ * Output template for field: rockcommerce_paymentdate
+ * Fieldtype: ProcessWire\FieldtypeDatetime
+ * Available variable: $value
+ */
+
+// Default rendering
+echo date('Y-m-d H:i:s', intval($value));

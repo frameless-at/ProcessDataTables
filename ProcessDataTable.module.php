@@ -39,7 +39,6 @@ class ProcessDataTable extends Process {
 		];
 	}
 
-	/** Setup generator and output path */
 	public function __construct() {
 		parent::__construct();
 		if (!self::$outputPath) {
@@ -64,9 +63,16 @@ class ProcessDataTable extends Process {
 	 * table is active (via ?dt_id= or defaulting to the first), and outputs:
 	 *   1. A single uk-tab item showing the active table’s title with a chevron-down icon,
 	 *      which toggles a dropdown of the other tables.
-	 *   2. The data table itself, built via MarkupAdminDataTable, showing selected fields
+	 *   2. The data table itself, built via MarkupAdminDataTable, showing selected Columns
 	 *      and virtual columns for the active instance.
-	 *   3. A right-aligned “Edit” link beneath the table for quick editing of the active instance.
+	 *   3. An “Edit” link for quick editing of the active instance.
+	 *
+	 * @return string HTML markup for the dropdown selector, table, and edit link.
+	 */
+	 /*
+	
+	/**
+	 * Renders the DataTables overview interface using the unified "columns" config.
 	 *
 	 * @return string HTML markup for the dropdown selector, table, and edit link.
 	 */
@@ -85,19 +91,16 @@ class ProcessDataTable extends Process {
 		}
 	
 		// 3) Determine active instance
-		$dtIdParam   = (int) $this->input->get->dt_id;
-		$ids         = $instances->each('id');
-		$activeId    = in_array($dtIdParam, $ids, true) ? $dtIdParam : $ids[0];
-		$activeInst  = $this->pages->get($activeId);
+		$dtIdParam  = (int) $this->input->get->dt_id;
+		$ids        = $instances->each('id');
+		$activeId   = in_array($dtIdParam, $ids, true) ? $dtIdParam : $ids[0];
+		$activeInst = $this->pages->get($activeId);
 		$activeTitle = htmlentities($activeInst->title);
 	
-		// 4) Build the uk-tab + dropdown structure
+		// 4) Build the uk-tab + dropdown selector
 		$html  = '<ul uk-tab class="uk-margin-small-bottom">';
 		$html .= '<li>';
-		  // active tab link
-		  $html .= "<a href='?dt_id={$activeId}'>{$activeTitle}";
-		  $html .= "<span uk-icon=\"icon: triangle-down\"></span></a>";
-		  // dropdown of all *other* tables
+		  $html .= "<a href='?dt_id={$activeId}'>{$activeTitle}<span uk-icon=\"icon: triangle-down\"></span></a>";
 		  $html .= '<div uk-dropdown="mode: click">';
 		  $html .= '<ul class="uk-nav uk-dropdown-nav">';
 		  foreach($instances as $inst) {
@@ -106,66 +109,51 @@ class ProcessDataTable extends Process {
 			  $url   = "?dt_id={$inst->id}";
 			  $html .= "<li><a href='{$url}'>{$label}</a></li>";
 		  }
-	
-		  $html .= '</ul>';
-		  $html .= '</div>';
-		$html .= '</li>';
-		// 11) Edit link 
+		  $html .= '</ul></div>';
 		  $editlink = "/cms/page/edit/?id=" . $activeId;
-		  $html  .=    "<li><a onclick=\"window.location.href='$editlink'\" href>Edit</a><li>";
+		$html  .=    "<li><a onclick=\"window.location.href='$editlink'\" href>Edit</a><li>";
 		$html .= '</ul>';
 	
-		// 5) Gather config from active instance
-		$dataTemplate = trim($activeInst->data_template);
-		$selector     = trim($activeInst->data_selector);
-		$rawFields    = preg_split('/[\r\n,]+/', $activeInst->data_fields);
-		$fields       = array_filter(array_map('trim', $rawFields));
-		$virtualCols  = $this->parseVirtualColumns($activeInst->virtual_columns);
+		// 5) Parse unified columns config
+		$columns = $this->parseColumns($activeInst->columns);
 	
 		// 6) Fetch pages to show
-		$selString   = "template={$dataTemplate}";
+		$dataTemplate = trim($activeInst->data_template);
+		$selector     = trim($activeInst->data_selector);
+		$selString    = "template={$dataTemplate}";
 		if($selector) $selString .= ", {$selector}";
-		$pagesToShow = $this->pages->find($selString);
+		$pagesToShow  = $this->pages->find($selString);
 	
 		// 7) Prepare the MarkupAdminDataTable
 		$table = $this->modules->get('MarkupAdminDataTable');
 		$table->setSortable(true);
-		$table->setEncodeEntities(false);
-	
-		// 8) Header row
-		$labels = $this->getStandardPropertyLabels();
+		$table->setEncodeEntities(false);	
+		
+		// 8) Header row (ordered by $columns)
 		$header = [];
-		foreach($fields as $fn) {
-			$header[] = htmlentities(
-				$labels[$fn]
-				?? ($this->fields->get($fn)->label ?? ucfirst($fn))
-			);
-		}
-		foreach(array_keys($virtualCols) as $col) {
-			$header[] = htmlentities($col);
+		foreach($columns as $col) {
+			$header[] = htmlentities($col['label']);
 		}
 		$table->headerRow($header);
 	
 		// 9) Data rows
 		foreach($pagesToShow as $page) {
 			$row = [];
-			foreach($fields as $fn) {
-				$row[] = $this->templateGenerator->renderTemplateFile($fn, $page->get($fn));
-			}
-			foreach($virtualCols as $colName => $fieldName) {
-				$row[] = $this->templateGenerator->renderTemplateFile($colName, $page->get($fieldName));
+			foreach($columns as $col) {
+				$value = $page->get($col['realName']);
+				$row[] = $this->templateGenerator->renderTemplateFile(
+					$col['templateName'],
+					$value
+				);
 			}
 			$table->row($row);
 		}
 	
-		// 10) Render dropdown‐tab + table
+		// 10) Render selector + table
 		$html .= $table->render();
-	
-	
-	
 		return $html;
 	}
-
+	
 	/**
 	 * Before any Page is saved, if it’s being created under our DataTables container,
 	 * force its template to “datatable” so the editor never has to choose it.
@@ -188,28 +176,20 @@ class ProcessDataTable extends Process {
 	 * Fires after Pages->save()
 	 * Creates/overwrites *.table-output.php files for each field.
 	 */
-	public function onPagesSave($event) {
+	public function onPagesSave(HookEvent $event) {
 		$page = $event->arguments(0);
 		if(!($page instanceof Page) || $page->template->name !== 'datatable') return;
-
-		// parse explicit fields (commas or line breaks)
-		$raw  = preg_split('/[\r\n,]+/', $page->data_fields);
-		$fields = array_filter(array_map('trim', $raw));
-
-		// parse virtual columns into [label=>fieldName]
-		$virtualCols = $this->parseVirtualColumns($page->virtual_columns);
-		
-		// virtual columns: [columnLabel => fieldName]
-		foreach($virtualCols as $columnLabel => $fieldName) {
-			// generate template for "Items" based on real field "items"
-			$this->templateGenerator->createTemplateFile($columnLabel, $fieldName);
+	
+		// parse and loop
+		$columns = $this->parseColumns($page->columns);
+		foreach($columns as $col) {
+			// create a stub named after the column key,
+			// using the real field name for type detection
+			$this->templateGenerator->createTemplateFile(
+				$col['templateName'],
+				$col['realName']
+			);
 		}
-		
-		// now generate for real fields, too
-		foreach($fields as $fieldName) {
-			$this->templateGenerator->createTemplateFile($fieldName);
-		}
-
 	}
 
 	/**
@@ -236,11 +216,18 @@ class ProcessDataTable extends Process {
 		// 4) Define and create/update all four config fields
 		$fieldsApi = wire('fields');
 		$defs = [
-			// name             Fieldtype            label               description
-			['data_template',   'FieldtypeText',     'Data Template',    'Enter the template name, e.g. “product”'],
-			['data_selector',   'FieldtypeText',     'Data Selector',    'Optional selector, e.g. status=published'],
-			['data_fields',     'FieldtypeTextarea', 'Data Fields',      'Comma- or newline-separated list of field names'],
-			['virtual_columns', 'FieldtypeTextarea', 'Virtual Columns',  'One per line: columnName=fieldName'],
+		  	['data_template', 'FieldtypeText',     'Data Template', 'Enter the template name, e.g. “product”'],
+		  	['data_selector', 'FieldtypeText',     'Data Selector', 'Optional selector, e.g. status=published'],
+		  	['columns',       'FieldtypeTextarea', 'Columns',
+				  "One per line, in the exact order you want your columns to appear.\n"
+				. "Syntax per line:\n"
+				. "  fieldname             — if that field exists, use its default label; otherwise use “fieldname” as the header\n"
+				. "  fieldname=label       — if that field exists, override its label with “label”; otherwise use “label” as the header\n"
+				. "Examples:\n"
+				. "  name                  — shows the “name” field with its own label\n"
+				. "  created=Date Created  — shows the “created” field but header reads “Date Created”\n"
+				. "  customColumn=Extra    — pulls “customColumn” (virtual or real) and header reads “Extra”\n"
+			  ],
 		];
 		$fields = [];
 
@@ -285,7 +272,7 @@ class ProcessDataTable extends Process {
 	// 1) Remove all pages using the 'datatable' template
 	$datatablePages = wire('pages')->find("template=datatable, include=all");
 	foreach($datatablePages as $page) {
-		$page->delete(true); // recursive delete just in case
+		$page->delete(true); // recursive delete just in case		
 	}
 	
 	// 2) Delete the 'datatable' template
@@ -295,7 +282,7 @@ class ProcessDataTable extends Process {
 	}
 	
 	// 3) Delete the config fields
-	$fieldNames = ['data_template','data_selector','data_fields','virtual_columns'];
+	$fieldNames = ['data_template','data_selector','data_columns'];
 	foreach($fieldNames as $name) {
 		$f = wire('fields')->get("name={$name}");
 		if($f) {
@@ -328,17 +315,116 @@ class ProcessDataTable extends Process {
 		];
 	}
 
-	/** Parse "Label=fieldName" lines into [Label=>fieldName] */
-	protected function parseVirtualColumns($cfg) {
+
+	/**
+	  * Parse the unified "columns" textarea into an ordered list of column definitions.
+	  *
+	  * Each line can be:
+	  *   fieldName
+	  *   fieldName=Custom Label
+	  *   virtualName=realFieldName
+	  *
+	  * Real fields are detected first: if the left side matches a real field,
+	  * it's treated as a real field (with optional label override). Otherwise
+	  * it's treated as a virtual column mapping.
+	  *
+	  * @param string $raw
+	  * @return array  List of columns, each with:
+	  *   - templateName: filename / column key
+	  *   - realName:      actual field name to read from Page
+	  *   - label:         column header label
+	  */
+	/* protected function parseColumns(string $raw): array {
+		 $lines = preg_split('/\r\n|\r|\n/', trim($raw));
+		 $stdLabels = $this->getStandardPropertyLabels();
+		 $out = [];
+	 
+		 foreach($lines as $line) {
+			 $line = trim($line);
+			 if($line === '') continue;
+	 
+			 // Split on first "="
+			 $parts = explode('=', $line, 2);
+			 $left  = trim($parts[0]);
+			 $right = isset($parts[1]) ? trim($parts[1]) : '';
+	 
+			 // If left matches a real field, treat as real field
+			 if($field = wire('fields')->get($left)) {
+				 $templateName = $left;
+				 $realName     = $left;
+				 $label        = $right !== ''
+							   ? $right
+							   : ($stdLabels[$left] ?? $field->label ?? ucfirst($left));
+			 } else {
+				 // Virtual column
+				 $templateName = $left;
+				 $realName     = $right;
+				 $label        = $right !== ''
+							   ? $right
+							   : ucfirst($left);
+			 }
+	 
+			 // Only include if we have a realName to fetch
+			 if($realName !== '') {
+				 $out[] = [
+					 'templateName' => $templateName,
+					 'realName'     => $realName,
+					 'label'        => $label
+				 ];
+			 }
+		 }
+	 
+		 return $out;
+	 } */
+	
+	protected function parseColumns(string $raw): array {
+		$lines = preg_split('/\r\n|\r|\n/', trim($raw));
+		$stdLabels = $this->getStandardPropertyLabels();
 		$out = [];
-		$lines = explode("\n", trim($cfg));
+	
 		foreach($lines as $line) {
-			if(strpos($line, '=') === false) continue;
-			list($label,$field) = array_map('trim', explode('=', $line, 2));
-			if($label && $field) $out[$label] = $field;
+			$line = trim($line);
+			if($line === '') continue;
+	
+			list($left, $right) = array_map('trim', explode('=', $line, 2) + [1=>'']);
+	
+			// determine if this is a real “field”:
+			//  • either a PW Field
+			//  • or one of our standard properties
+			$fieldObj = wire('fields')->get($left);
+			$isStandard = array_key_exists($left, $stdLabels);
+	
+			if($fieldObj || $isStandard) {
+				// real column: realName = left
+				$templateName = $left;
+				$realName     = $left;
+				// label override if present, else field label or std label
+				if($right !== '') {
+					$label = $right;
+				} elseif($fieldObj) {
+					$label = $fieldObj->label;
+				} else {
+					$label = $stdLabels[$left];
+				}
+			} else {
+				// virtual column: left=columnName, right=real field
+				$templateName = $left;
+				$realName     = $right;
+				// label override if present, else use columnName
+				$label = $right !== '' ? $right : ucfirst($left);
+			}
+	
+			// only include if there's something to read
+			if($realName !== '') {
+				$out[] = [
+					'templateName' => $templateName,
+					'realName'     => $realName,
+					'label'        => $label
+				];
+			}
 		}
+	
 		return $out;
 	}
-
 	
 }
