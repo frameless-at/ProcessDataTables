@@ -112,6 +112,8 @@ class ProcessDataTable extends Process {
 		  $html .= '</ul></div>';
 		  $editlink = "/cms/page/edit/?id=" . $activeId;
 		$html  .=    "<li><a onclick=\"window.location.href='$editlink'\" href>Edit</a><li>";
+		$addUrl = "/cms/page/add/?parent_id={$parent->id}";
+		$html  .= "<li><a class='uk-text-primary' href onclick=\"window.location.href='{$addUrl}'\">Add New</a></li>";
 		$html .= '</ul>';
 	
 		// 5) Parse unified columns config
