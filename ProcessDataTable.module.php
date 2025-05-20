@@ -48,13 +48,122 @@ class ProcessDataTable extends Process {
 		$this->templateGenerator = new TemplateGenerator(self::$outputPath);
 	}
 
-public function init() {
+	public function init() {
 		parent::init();
 		// regenerate on save
 		wire('pages')->addHookAfter('save', $this, 'onPagesSave');
 		
 		// ensure new children use datatable template
 		wire('pages')->addHookBefore('saveReady', $this, 'ensureChildHasCorrectTemplate');
+	}
+
+/**
+	 * Renders the DataTables overview interface.
+	 *
+	 * Fetches all DataTable instances under the “data-tables” parent, determines which
+	 * table is active (via ?dt_id= or defaulting to the first), and outputs:
+	 *   1. A single uk-tab item showing the active table’s title with a chevron-down icon,
+	 *      which toggles a dropdown of the other tables.
+	 *   2. The data table itself, built via MarkupAdminDataTable, showing selected fields
+	 *      and virtual columns for the active instance.
+	 *   3. A right-aligned “Edit” link beneath the table for quick editing of the active instance.
+	 *
+	 * @return string HTML markup for the dropdown selector, table, and edit link.
+	 */
+	public function execute() {
+		// 1) Find the “DataTables” parent page
+		$parent = $this->pages->get("name=data-tables, include=all");
+		if(!$parent->id) {
+			return $this->warning("DataTables parent page not found.");
+		}
+	
+		// 2) Fetch all published DataTable instances
+		$instances = $this->pages->find("parent={$parent->id}, status=published, sort=name");
+		if(!$instances->count()) {
+			$addUrl = "/cms/page/add/?parent_id={$parent->id}";
+			return "<p>No DataTables defined yet. <a href='{$addUrl}'>Add one now</a>.</p>";
+		}
+	
+		// 3) Determine active instance
+		$dtIdParam   = (int) $this->input->get->dt_id;
+		$ids         = $instances->each('id');
+		$activeId    = in_array($dtIdParam, $ids, true) ? $dtIdParam : $ids[0];
+		$activeInst  = $this->pages->get($activeId);
+		$activeTitle = htmlentities($activeInst->title);
+	
+		// 4) Build the uk-tab + dropdown structure
+		$html  = '<ul uk-tab class="uk-margin-small-bottom">';
+		$html .= '<li>';
+		  // active tab link
+		  $html .= "<a href='?dt_id={$activeId}'>{$activeTitle}";
+		  $html .= "<span uk-icon=\"icon: triangle-down\"></span></a>";
+		  // dropdown of all *other* tables
+		  $html .= '<div uk-dropdown="mode: click">';
+		  $html .= '<ul class="uk-nav uk-dropdown-nav">';
+		  foreach($instances as $inst) {
+			  if($inst->id === $activeId) continue;
+			  $label = htmlentities($inst->title);
+			  $url   = "?dt_id={$inst->id}";
+			  $html .= "<li><a href='{$url}'>{$label}</a></li>";
+		  }
+	
+		  $html .= '</ul>';
+		  $html .= '</div>';
+		$html .= '</li>';
+		// 11) Edit link 
+		  $editlink = "/cms/page/edit/?id=" . $activeId;
+		  $html  .=    "<li><a onclick=\"window.location.href='$editlink'\" href>Edit</a><li>";
+		$html .= '</ul>';
+	
+		// 5) Gather config from active instance
+		$dataTemplate = trim($activeInst->data_template);
+		$selector     = trim($activeInst->data_selector);
+		$rawFields    = preg_split('/[\r\n,]+/', $activeInst->data_fields);
+		$fields       = array_filter(array_map('trim', $rawFields));
+		$virtualCols  = $this->parseVirtualColumns($activeInst->virtual_columns);
+	
+		// 6) Fetch pages to show
+		$selString   = "template={$dataTemplate}";
+		if($selector) $selString .= ", {$selector}";
+		$pagesToShow = $this->pages->find($selString);
+	
+		// 7) Prepare the MarkupAdminDataTable
+		$table = $this->modules->get('MarkupAdminDataTable');
+		$table->setSortable(true);
+		$table->setEncodeEntities(false);
+	
+		// 8) Header row
+		$labels = $this->getStandardPropertyLabels();
+		$header = [];
+		foreach($fields as $fn) {
+			$header[] = htmlentities(
+				$labels[$fn]
+				?? ($this->fields->get($fn)->label ?? ucfirst($fn))
+			);
+		}
+		foreach(array_keys($virtualCols) as $col) {
+			$header[] = htmlentities($col);
+		}
+		$table->headerRow($header);
+	
+		// 9) Data rows
+		foreach($pagesToShow as $page) {
+			$row = [];
+			foreach($fields as $fn) {
+				$row[] = $this->templateGenerator->renderTemplateFile($fn, $page->get($fn));
+			}
+			foreach($virtualCols as $colName => $fieldName) {
+				$row[] = $this->templateGenerator->renderTemplateFile($colName, $page->get($fieldName));
+			}
+			$table->row($row);
+		}
+	
+		// 10) Render dropdown‐tab + table
+		$html .= $table->render();
+	
+	
+	
+		return $html;
 	}
 
 	/**
@@ -89,17 +198,21 @@ public function init() {
 
 		// parse virtual columns into [label=>fieldName]
 		$virtualCols = $this->parseVirtualColumns($page->virtual_columns);
-
-		// merge and dedupe
-		$all = array_unique(array_merge($fields, array_values($virtualCols)));
-
-		// generate a template file for each
-		foreach($all as $name) {
-			$this->templateGenerator->createTemplateFile($name);
+		
+		// virtual columns: [columnLabel => fieldName]
+		foreach($virtualCols as $columnLabel => $fieldName) {
+			// generate template for "Items" based on real field "items"
+			$this->templateGenerator->createTemplateFile($columnLabel, $fieldName);
 		}
+		
+		// now generate for real fields, too
+		foreach($fields as $fieldName) {
+			$this->templateGenerator->createTemplateFile($fieldName);
+		}
+
 	}
 
-/**
+	/**
 	 * Runs when the module is installed.
 	 */
 	public function install() {
@@ -227,171 +340,5 @@ public function init() {
 		return $out;
 	}
 
-public function execute() {
-		// 1) Find the “DataTables” parent page
-		$parent = $this->pages->get("name=data-tables, include=all");
-		if(!$parent->id) {
-			return $this->warning("DataTables parent page not found.");
-		}
 	
-		// 2) Fetch all published child pages (your instances)
-		$instances = $this->pages->find("parent={$parent->id}, status=published, sort=name");
-		if(!$instances->count()) {
-			return "<p>No DataTables defined yet. <a href='/cms/page/add/?parent_id={$parent->id}'>Add one now</a>.</p>";
-		}
-	
-		// 3) Determine which dt_id to use (GET or default to first)
-		$dtId = (int) $this->input->get->dt_id;
-		if(!$dtId) {
-			$first = $instances->first();
-			$dtId  = $first ? $first->id : 0;
-		}
-	
-		// 4) Build the UIkit Subnav
-		$html  = '<ul class="uk-subnav uk-subnav-pill" uk-margin>';
-		foreach($instances as $inst) {
-			$active = ($inst->id === $dtId) ? ' uk-active' : '';
-			$url    = '?dt_id=' . $inst->id;
-			$label  = htmlentities($inst->title);
-			$html  .= "<li class='{$active}'><a href='{$url}'>{$label}</a></li>";
-		}
-		$html .= '</ul>';
-	
-		// 5) Load the selected DataTable instance
-		$instance = $this->pages->get($dtId);
-		if(!$instance->id) {
-			return $html . $this->warning("Selected DataTable instance not found.");
-		}
-	
-		// 6) Render the heading with the correct edit link
-		$title   = htmlentities($instance->title);
-		$editUrl = $this->config->urls->root . "cms/page/edit/?id=" . $instance->id;
-		$html   .= "<h3 style='margin-top:1em'>{$title} "
-				 .  "<small style='font-weight:normal; margin-left:1em'>"
-				 .    "<a href='{$editUrl}'>Edit</a>"
-				 .  "</small>"
-				 ."</h3>";
-	
-		// 7) Gather configuration
-		$dataTemplate = trim($instance->data_template);
-		$selector     = trim($instance->data_selector);
-		$rawFields    = preg_split('/[\r\n,]+/', $instance->data_fields);
-		$fields       = array_filter(array_map('trim', $rawFields));
-		$virtualCols  = $this->parseVirtualColumns($instance->virtual_columns);
-	
-		// 8) Fetch pages to show
-		$selString = "template={$dataTemplate}";
-		if($selector) $selString .= ", {$selector}";
-		$pagesToShow = $this->pages->find($selString);
-	
-		// 9) Prepare the table
-		$table = $this->modules->get('MarkupAdminDataTable');
-		$table->setSortable(true);
-		$table->setEncodeEntities(false);
-	
-		// 10) Header row
-		$labels = $this->getStandardPropertyLabels();
-		$header = [];
-		foreach($fields as $fn) {
-			$header[] = htmlentities(
-				$labels[$fn] 
-				?? ($this->fields->get($fn)->label ?? ucfirst($fn))
-			);
-		}
-		foreach(array_keys($virtualCols) as $col) {
-			$header[] = htmlentities($col);
-		}
-		$table->headerRow($header);
-	
-		// 11) Data rows
-		foreach($pagesToShow as $page) {
-			$row = [];
-			foreach($fields as $fn) {
-				$row[] = $this->templateGenerator->renderTemplateFile($fn, $page->get($fn));
-			}
-			foreach($virtualCols as $colName => $fieldName) {
-				$row[] = $this->templateGenerator->renderTemplateFile($colName, $page->get($fieldName));
-			}
-			$table->row($row);
-		}
-	
-		// 12) Return nav + heading + table
-		return $html . $table->render();
-	}
-	/**
-	 * Main execution: show dropdown + render the table
-	 *
-	 * @return string
-	 */
-	/* public function execute() {
-		// build instance selector
-// 1) Hole das Modul-Eltern-Page, das unter Setup → DataTables angelegt wurde
-		$parent = $this->pages->get("name=data-tables, include=all");
-		if(!$parent->id) {
-			return $this->warning("DataTables parent not found.");
-		}
-		
-		// 2) Finde alle sichtbaren Children dieses Eltern-Pages
-		$instances = $this->pages->find("parent={$parent->id}, status!=trash, sort=name");	
-		
-		// 3) Build the Subnav
-		$html  = '<ul class="uk-subnav uk-subnav-pill" uk-margin>';
-		foreach($instances as $inst) {
-			$active = ((int)$this->input->get->dt_id === $inst->id) ? ' uk-active' : '';
-			$url    = '?dt_id=' . $inst->id;
-			$label  = htmlentities($inst->title);
-			$html  .= "<li class='{$active}'><a href='{$url}'>{$label}</a></li>";
-		}
-		$html .= '</ul>';
-		
-		// 4) If none selected, just show nav
-		$dtId = (int) $this->input->get->dt_id;
-		if(!$dtId) return $html;
-		
-		$instance = $this->pages->get($dtId);
-		if(!$instance->id) return $this->warning("DataTable not found.");
-
-		// gather config
-		$template    = trim($instance->data_template);
-		$selector    = trim($instance->data_selector);
-		$raw         = preg_split('/[\r\n,]+/', $instance->data_fields);
-		$fields      = array_filter(array_map('trim', $raw));
-		$virtualCols = $this->parseVirtualColumns($instance->virtual_columns);
-
-		// fetch pages
-		$sel = "template={$template}";
-		if($selector) $sel .= ", {$selector}";
-		$pages = $this->pages->find($sel);
-
-		// prepare table
-		$table = $this->modules->get('MarkupAdminDataTable');
-		
-		$table->setSortable(true);
-		$table->setEncodeEntities(false);
-		// header
-		$labels = $this->getStandardPropertyLabels();
-		$header = [];
-		foreach($fields as $fn) {
-			$header[] = htmlentities($labels[$fn] ?? ($this->fields->get($fn)->label ?? ucfirst($fn)));
-		}
-		foreach(array_keys($virtualCols) as $col) {
-			$header[] = htmlentities($col);
-		}
-		$table->headerRow($header);
-
-		// rows
-		foreach($pages as $page) {
-			$row = [];
-			foreach($fields as $fn) {
-				$row[] = $this->templateGenerator->renderTemplateFile($fn, $page->get($fn));
-			}
-			foreach($virtualCols as $col => $fn) {
-				$row[] = $this->templateGenerator->renderTemplateFile($col, $page->get($fn));
-			}
-			$table->row($row);
-		}
-
-		return $html . $table->render();
-	} 
-	*/
 }

@@ -71,35 +71,39 @@ class TemplateGenerator {
 		}
 	}
 	 
-/**
-	 * Create or overwrite a single template file
-	 *
-	 * @param string $fieldName
-	 */
-	public function createTemplateFile($fieldName) {
-		$filePath = $this->templateDir . $fieldName . '.table-output.php';
+public function createTemplateFile(string $templateName, string $realFieldName = null) {
+		$filePath = $this->templateDir . $templateName . '.table-output.php';
 	
-		// Make absolutely sure the directory exists
+		// 1) If the file is already there, bail out early
+		if (is_file($filePath)) {
+			// optionally log:
+			// wire('log')->save('ProcessDataTable', "Skipped existing template: {$templateName}");
+			return;
+		}
+	
+		// 2) Otherwise, ensure directory exists...
 		if (!is_dir($this->templateDir)) {
 			mkdir($this->templateDir, 0777, true);
 			wire('log')->save('ProcessDataTable', "Re-created template directory: {$this->templateDir}");
 		}
 	
-		// Get the right fieldtype (or "unknown")
-		$field     = wire('fields')->get($fieldName);
-		$fieldType = $field ? $field->type->name : 'unknown';
-	
-		// Build the content and write (always overwrite)
-		$templateContent = $this->getTemplateContent($fieldType, $fieldName);
-		$bytesWritten    = file_put_contents($filePath, $templateContent);
-	
-		if ($bytesWritten === false) {
-			wire('log')->save('ProcessDataTable', "Failed writing template file: {$filePath}");
+		// 3) Type‐detection logic (meta → WireData, realFieldName → lookup)
+		$lookupName = $realFieldName ?: $templateName;
+		if ($lookupName === 'meta') {
+			$typeClass = 'WireData';
 		} else {
-			chmod($filePath, 0777);
-			wire('log')->save('ProcessDataTable', "Wrote template file ({$bytesWritten} bytes): {$filePath}");
+			$field     = wire('fields')->get($lookupName);
+			$typeClass = $field ? get_class($field->type) : 'unknown';
+			$shortType = preg_replace('/^ProcessWire\\\\/', '', $typeClass);
 		}
+	
+		// 4) Build & write out the stub
+		$templateContent = $this->getTemplateContent($typeClass, $templateName);
+		file_put_contents($filePath, $templateContent);
+		chmod($filePath, 0777);
+		wire('log')->save('ProcessDataTable', "Wrote template file: {$filePath}");
 	}
+
 	
 	/**
 	 * Render the template file for a specific field
@@ -198,56 +202,116 @@ class TemplateGenerator {
 			return $template;
 		}
 		
-		switch ($fieldType) {
+		switch($fieldType) {
+		
+			// Textual fields
 			case 'FieldtypeText':
 			case 'FieldtypeTextarea':
-				$template .= "// Example: output simple value\n";
+			case 'FieldtypeMarkupAdmin':
+			case 'FieldtypeTextareaBasic':
+				$template .= "// Text output\n";
+				$template .= "echo htmlspecialchars(\$value);\n";
+				break;
+		
+			// Numeric fields
+			case 'FieldtypeInteger':
+			case 'FieldtypeFloat':
+			case 'FieldtypeFieldtypeDecimal':  // if you have a decimal type
+				$template .= "// Number output\n";
 				$template .= "echo \$value;\n";
 				break;
-			case 'FieldtypeEmail':
-				$template .= "// Example: Link to user's edit page based on email\n";
-				$template .= "\$user = wire('users')->get('email=' . \$value);\n";
-				$template .= "if (\$user->id) {\n";
-				$template .= "    \$editUrl = wire('config')->urls->admin . 'access/users/edit/?id=' . \$user->id;\n";
-				$template .= "    echo '<a href=\"' . \$editUrl . '\">' . htmlspecialchars(\$value) . '</a>';\n";
+		
+			// Boolean
+			case 'FieldtypeCheckbox':
+			case 'FieldtypeToggle':
+				$template .= "// Yes/No\n";
+				$template .= "echo \$value ? 'Yes' : 'No';\n";
+				break;
+		
+			// Single‐selection fields
+			case 'FieldtypeOptions':
+			case 'FieldtypeAsmSelect':
+			case 'FieldtypeSelect':
+				$template .= "// Multiple or single select (comma-separated)\n";
+				$template .= "if(is_array(\$value)) {\n";
+				$template .= "    echo implode(', ', array_map('htmlspecialchars', \$value));\n";
 				$template .= "} else {\n";
 				$template .= "    echo htmlspecialchars(\$value);\n";
 				$template .= "}\n";
 				break;
+		
+			// Page reference(s)
 			case 'FieldtypePage':
-				$template .= "// Example: Output linked page title\n";
-				$template .= "echo \$value->each(\"{title|name}<br>\");\n";
-				break;
-
-			case 'FieldtypeDate':
-				$template .= "// Example: Format date\n";
-				$template .= "echo date('Y-m-d H:i:s', \$value);\n";
-				break;
-
-			case 'FieldtypeImage':
-				$template .= "// Example: Display image thumbnail\n";
-				$template .= "if (\$value->count) {\n";
-				$template .= "    echo '<img src=\"' . \$value->first()->url . '\" width=\"100\">';\n";
+			case 'FieldtypePageReference':  // alias in some versions
+				$template .= "// Linked page(s)\n";
+				$template .= "if(\$value instanceof PageArray || is_array(\$value)) {\n";
+				$template .= "    foreach(\$value as \$p) echo '<a href=\"' . \$p->url . '\">' . htmlspecialchars(\$p->title) . '</a><br>';\n";
+				$template .= "} elseif(\$value instanceof Page) {\n";
+				$template .= "    echo '<a href=\"' . \$value->url . '\">' . htmlspecialchars(\$value->title) . '</a>';\n";
+				$template .= "} else {\n";
+				$template .= "    echo htmlspecialchars(\$value);\n";
 				$template .= "}\n";
 				break;
-
-			case 'FieldtypeCheckbox':		
-			case 'FieldtypeToggle':
-				$template .= "// Example: output as 'Yes' or 'No'\n";
-				$template .= "echo \$value ? 'Yes' : 'No';\n";
-			break;
-				
-			case 'FieldtypeTable':
-				$template .= "// Example: Output the number of rows, leave empty if 0\n";
-				$template .= "echo \$value->count() > 0 ? \$value->count() : '';\n";
+		
+			// Files
+			case 'FieldtypeImage':
+			case 'FieldtypeFile':
+				$template .= "// File or image output\n";
+				$template .= "if(\$value && \$value->count()) {\n";
+				$template .= "    foreach(\$value as \$file) {\n";
+				$template .= "        echo '<a href=\"' . \$file->url . '\">';\n";
+				$template .= "        if(\$file->width) echo '<img src=\"' . \$file->url . '\" style=\"max-width:100px\">';\n";
+				$template .= "        else echo htmlspecialchars(\$file->name);\n";
+				$template .= "        echo '</a> ';\n";
+				$template .= "    }\n";
+				$template .= "}\n";
 				break;
-
+		
+			// Dates and times
+			case 'FieldtypeDate':
+			case 'FieldtypeDatetime':
+			case 'FieldtypeTime':
+				$template .= "// Date/Time formatting\n";
+				$template .= "if(\$value) echo \$value ? date('Y-m-d H:i:s', \$value) : '';\n";
+				break;
+		
+			// Email & URL
+			case 'FieldtypeEmail':
+				$template .= "// Email link\n";
+				$template .= "echo '<a href=\"mailto:' . htmlspecialchars(\$value) . '\">' . htmlspecialchars(\$value) . '</a>';\n";
+				break;
+			case 'FieldtypeUrl':
+				$template .= "// External link\n";
+				$template .= "if(\$value) echo '<a href=\"' . htmlspecialchars(\$value) . '\" target=\"_blank\">' . htmlspecialchars(\$value) . '</a>';\n";
+				break;
+		
+			// Location / LatLng (if using FieldtypeLocation)
+			case 'FieldtypeLocation':
+				$template .= "// Location (latitude, longitude)\n";
+				$template .= "if(\$value) echo \$value->lat . ', ' . \$value->lng;\n";
+				break;
+		
+			// Repeater / PageTable
+			case 'FieldtypeRepeater':
+			case 'FieldtypeRepeaterMatrix':
+			case 'FieldtypePageTable':
+				$template .= "// Repeater / Table: count and link\n";
+				$template .= "echo \$value->count() . ' items';\n";
+				break;
+			case 'WireData':
+				// Meta or other WireData-backed values → pretty JSON dump
+				$template .= "// WireData / metadata: render as JSON\n";
+				$template .= "echo '<pre style=\"white-space:pre-wrap;font-size:0.9em;margin:0;\">'\n";
+				$template .= "   . htmlentities(json_encode((array)\$value->getArray(), JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE))\n";
+				$template .= "   . '</pre>';\n";
+				break;
+			// Default fallback
 			default:
-				$template .= "// Default output\n";
+				$template .= "// Default rendering\n";
 				$template .= "echo htmlspecialchars(\$value);\n";
 				break;
 		}
-
+		
 		return $template;
 	}
 }
