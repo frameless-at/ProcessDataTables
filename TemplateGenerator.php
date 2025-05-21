@@ -11,6 +11,11 @@
  */
 
 class TemplateGenerator {
+	/** 
+ 	* File suffix for generated column templates 
+ 	* @var string 
+ 	*/
+	const TEMPLATE_SUFFIX = '.column.php';
 
 	/**
 	 * Directory path for output templates
@@ -20,20 +25,12 @@ class TemplateGenerator {
 	protected $templateDir;
 
 	/**
-	 * ProcessWire Fields API
-	 *
-	 * @var Fields
-	 */
-	protected $fields;
-
-	/**
 	 * Constructor
 	 *
 	 * @param string $templateDir
-	 * @param Fields $fields
 	 */
 	public function __construct($templateDir) {
-		$this->templateDir = $templateDir;
+		$this->templateDir = rtrim($templateDir, '/') . '/';
 		$this->ensureTemplateDir();
 	}
 
@@ -52,7 +49,7 @@ class TemplateGenerator {
 	 * @param string $fieldName
 	 */
 	public function deleteTemplateFile($fieldName) {
-		$templateFile = $this->templateDir . "{$fieldName}.table-output.php";
+		$templateFile = $this->templateDir . $fieldName . self::TEMPLATE_SUFFIX;
 	
 		if (file_exists($templateFile)) {
 	
@@ -71,40 +68,50 @@ class TemplateGenerator {
 		}
 	}
 	 
-public function createTemplateFile(string $templateName, string $realFieldName = null) {
-		$filePath = $this->templateDir . $templateName . '.table-output.php';
+/**
+	 * Create or overwrite a single-column stub.
+	 *
+	 * @param string      $label          The human-readable column label (used for filename)
+	 * @param string|null $realFieldName  The actual field/property name for type detection
+	 */
+	public function createTemplateFile(string $label, string $realFieldName = null) {
+		// 1) Determine safe filename: slugify the label
+		$slug = preg_replace('/[^a-z0-9]+/i','_', trim(strtolower($label)));
+		$slug = trim($slug, '_');
+		$file = $this->templateDir . $slug . self::TEMPLATE_SUFFIX;	
+			
+		// 2) Bail early if it already exists
+		if (is_file($file)) return;
 	
-		// 1) If the file is already there, bail out early
-		if (is_file($filePath)) {
-			// optionally log:
-			// wire('log')->save('ProcessDataTable', "Skipped existing template: {$templateName}");
+		// 3) Ensure directory
+		if (!is_dir($this->templateDir)) {
+			mkdir($this->templateDir, 0755, true);
+			wire('log')->save('ProcessDataTable', "Created template directory: {$this->templateDir}");
+		}
+	
+		// 4) Decide which category this is for stub content
+		$real = $realFieldName ?: $slug; 
+	
+		if ($real === 'meta') {
+			$typeClass = 'WireData';
+		} elseif (in_array($real, ['id','name','created','modified','parent','url'], true)) {
+			$typeClass = 'PageProperty';
+		} elseif ($field = wire('fields')->get($real)) {
+			$typeClass = $field->type->className; 
+		} else {
+			// invalid field/property, skip stub
 			return;
 		}
 	
-		// 2) Otherwise, ensure directory exists...
-		if (!is_dir($this->templateDir)) {
-			mkdir($this->templateDir, 0777, true);
-			wire('log')->save('ProcessDataTable', "Re-created template directory: {$this->templateDir}");
-		}
+		// 5) Generate the stub
+		$content = $this->getTemplateContent($typeClass, $real);
 	
-		// 3) Type‐detection logic (meta → WireData, realFieldName → lookup)
-		$lookupName = $realFieldName ?: $templateName;
-		if ($lookupName === 'meta') {
-			$typeClass = 'WireData';
-		} else {
-			$field     = wire('fields')->get($lookupName);
-			$typeClass = $field ? get_class($field->type) : 'unknown';
-			$shortType = preg_replace('/^ProcessWire\\\\/', '', $typeClass);
-		}
-	
-		// 4) Build & write out the stub
-		$templateContent = $this->getTemplateContent($typeClass, $templateName);
-		file_put_contents($filePath, $templateContent);
-		chmod($filePath, 0777);
-		wire('log')->save('ProcessDataTable', "Wrote template file: {$filePath}");
+		// 6) Write it out
+		file_put_contents($file, $content);
+		chmod($file, 0664);
+		wire('log')->save('ProcessDataTable', "Wrote template file: {$file}");
 	}
-
-	
+			
 	/**
 	 * Render the template file for a specific field
 	 *
@@ -112,24 +119,28 @@ public function createTemplateFile(string $templateName, string $realFieldName =
 	 * @param mixed $value
 	 * @return string
 	 */
-	 public function renderTemplateFile($fieldName, $value) {
-		 $filePath = $this->templateDir . $fieldName . '.table-output.php';
+	 public function renderTemplateFile(string $label, $value) {
+		 // 1) aus Label den Slug bilden (wie in createTemplateFile)
+		 $slug = preg_replace('/[^a-z0-9]+/i','_', strtolower($label));
+		 $slug = trim($slug, '_');
+		 $file = $this->templateDir . $slug . self::TEMPLATE_SUFFIX;
 	 
-		 // If the file does not exist, attempt to create it
-		 if (!file_exists($filePath)) {
-			 wire('log')->save('ProcessDataTable', "Template not found. Attempting to create: $filePath");
-			 $this->createTemplateFile($fieldName);
+		 // 2) falls nicht existent, versuchen zu erzeugen
+		 if (!file_exists($file)) {
+			 wire('log')->save('ProcessDataTable', "Template not found, creating: $file");
+			 // Da createTemplateFile slugify auf Label macht, kann Label direkt übergeben werden:
+			 $this->createTemplateFile($label);
 		 }
 	 
-		 // Check again after attempting to create
-		 if (!file_exists($filePath)) {
-			 wire('log')->save('ProcessDataTable', "Failed to create template: $filePath");
-			 return htmlentities($value); // Fallback: raw output
+		 // 3) nach erneutem Check
+		 if (!file_exists($file)) {
+			 wire('log')->save('ProcessDataTable', "Failed to create template: $file");
+			 return htmlentities($value);
 		 }
 	 
-		 // Capture output
+		 // 4) rendern
 		 ob_start();
-		 include $filePath;
+		 include $file;
 		 return ob_get_clean();
 	 }
 	 
@@ -159,159 +170,146 @@ public function createTemplateFile(string $templateName, string $realFieldName =
 		 }
 	 }
 	 
-	 /**
-	  * Get the default template content for a given field or property.
-	  *
-	  * @param string $fieldType Fieldtype or "property"
-	  * @param string $fieldName Field or property name
-	  * @return string
-	  */
-	protected function getTemplateContent($fieldType, $fieldName) {
-		$template = "<?php\n";
-		$template .= "/**\n";
-		$template .= " * Output template for field: $fieldName\n";
-		$template .= " * Fieldtype: $fieldType\n";
-		$template .= " * Available variable: \$value\n";
-		$template .= " */\n\n";
-
- // Handle properties first
-		$propertyTemplates = [
-			'created' => "// Format created date\n" .
-						 "echo date('Y-m-d H:i:s', \$value);\n",
-		
-			'modified' => "// Format modified date\n" .
-						  "echo date('Y-m-d H:i:s', \$value);\n",
-		
-			'name' => "// Output page name\n" .
-					  "echo htmlspecialchars(\$value);\n",
-		
-			'id' => "// Output page ID\n" .
-					"echo (int)\$value;\n",
-		
-			'parent' => "// Link to parent page\n" .
-						"if(\$value instanceof Page) {\n" .
-						"    echo '<a href=\"' . \$value->url . '\">' . htmlspecialchars(\$value->title) . '</a>';\n" .
-						"}\n",
-		
-			'url' => "// Output URL as link\n" .
-					 "echo '<a href=\"' . \$value . '\">' . htmlspecialchars(\$value) . '</a>';\n"
-		];
-		
-		if (isset($propertyTemplates[$fieldName])) {
-			$template .= $propertyTemplates[$fieldName];
-			return $template;
-		}
-		
-		switch($fieldType) {
-		
-			// Textual fields
-			case 'FieldtypeText':
-			case 'FieldtypeTextarea':
-			case 'FieldtypeMarkupAdmin':
-			case 'FieldtypeTextareaBasic':
-				$template .= "// Text output\n";
-				$template .= "echo htmlspecialchars(\$value);\n";
-				break;
-		
-			// Numeric fields
-			case 'FieldtypeInteger':
-			case 'FieldtypeFloat':
-			case 'FieldtypeFieldtypeDecimal':  // if you have a decimal type
-				$template .= "// Number output\n";
-				$template .= "echo \$value;\n";
-				break;
-		
-			// Boolean
-			case 'FieldtypeCheckbox':
-			case 'FieldtypeToggle':
-				$template .= "// Yes/No\n";
-				$template .= "echo \$value ? 'Yes' : 'No';\n";
-				break;
-		
-			// Single‐selection fields
-			case 'FieldtypeOptions':
-			case 'FieldtypeAsmSelect':
-			case 'FieldtypeSelect':
-				$template .= "// Multiple or single select (comma-separated)\n";
-				$template .= "if(is_array(\$value)) {\n";
-				$template .= "    echo implode(', ', array_map('htmlspecialchars', \$value));\n";
-				$template .= "} else {\n";
-				$template .= "    echo htmlspecialchars(\$value);\n";
-				$template .= "}\n";
-				break;
-		
-			// Page reference(s)
-			case 'FieldtypePage':
-			case 'FieldtypePageReference':  // alias in some versions
-				$template .= "// Linked page(s)\n";
-				$template .= "if(\$value instanceof PageArray || is_array(\$value)) {\n";
-				$template .= "    foreach(\$value as \$p) echo '<a href=\"' . \$p->url . '\">' . htmlspecialchars(\$p->title) . '</a><br>';\n";
-				$template .= "} elseif(\$value instanceof Page) {\n";
-				$template .= "    echo '<a href=\"' . \$value->url . '\">' . htmlspecialchars(\$value->title) . '</a>';\n";
-				$template .= "} else {\n";
-				$template .= "    echo htmlspecialchars(\$value);\n";
-				$template .= "}\n";
-				break;
-		
-			// Files
-			case 'FieldtypeImage':
-			case 'FieldtypeFile':
-				$template .= "// File or image output\n";
-				$template .= "if(\$value && \$value->count()) {\n";
-				$template .= "    foreach(\$value as \$file) {\n";
-				$template .= "        echo '<a href=\"' . \$file->url . '\">';\n";
-				$template .= "        if(\$file->width) echo '<img src=\"' . \$file->url . '\" style=\"max-width:100px\">';\n";
-				$template .= "        else echo htmlspecialchars(\$file->name);\n";
-				$template .= "        echo '</a> ';\n";
-				$template .= "    }\n";
-				$template .= "}\n";
-				break;
-		
-			// Dates and times
-			case 'FieldtypeDate':
-			case 'FieldtypeDatetime':
-			case 'FieldtypeTime':
-				$template .= "// Date/Time formatting\n";
-				$template .= "if(\$value) echo \$value ? date('Y-m-d H:i:s', \$value) : '';\n";
-				break;
-		
-			// Email & URL
-			case 'FieldtypeEmail':
-				$template .= "// Email link\n";
-				$template .= "echo '<a href=\"mailto:' . htmlspecialchars(\$value) . '\">' . htmlspecialchars(\$value) . '</a>';\n";
-				break;
-			case 'FieldtypeUrl':
-				$template .= "// External link\n";
-				$template .= "if(\$value) echo '<a href=\"' . htmlspecialchars(\$value) . '\" target=\"_blank\">' . htmlspecialchars(\$value) . '</a>';\n";
-				break;
-		
-			// Location / LatLng (if using FieldtypeLocation)
-			case 'FieldtypeLocation':
-				$template .= "// Location (latitude, longitude)\n";
-				$template .= "if(\$value) echo \$value->lat . ', ' . \$value->lng;\n";
-				break;
-		
-			// Repeater / PageTable
-			case 'FieldtypeRepeater':
-			case 'FieldtypeRepeaterMatrix':
-			case 'FieldtypePageTable':
-				$template .= "// Repeater / Table: count and link\n";
-				$template .= "echo \$value->count() . ' items';\n";
-				break;
-			case 'WireData':
-				// Meta or other WireData-backed values → pretty JSON dump
-				$template .= "// WireData / metadata: render as JSON\n";
-				$template .= "echo '<pre style=\"white-space:pre-wrap;font-size:0.9em;margin:0;\">'\n";
-				$template .= "   . htmlentities(json_encode((array)\$value->getArray(), JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE))\n";
-				$template .= "   . '</pre>';\n";
-				break;
-			// Default fallback
-			default:
-				$template .= "// Default rendering\n";
-				$template .= "echo htmlspecialchars(\$value);\n";
-				break;
-		}
-		
-		return $template;
-	}
+	   /* Build the PHP stub for a single column.
+	   *
+	   * @param string $fieldType   One of: "PageProperty", "WireData", or a Fieldtype short name
+	   * @param string $fieldName   The field or property name (for reference in comments)
+	   * @return string             Full PHP file contents
+	   */
+	  protected function getTemplateContent(string $fieldType, string $fieldName) {
+		  // 1) File header and docblock
+		  $php  = "<?php\n";
+		  $php .= "/**\n";
+		  $php .= " * Output template for field: {$fieldName}\n";
+		  $php .= " * Fieldtype: {$fieldType}\n";
+		  $php .= " * Available variable: \$value\n";
+		  $php .= " */\n\n";
+	  
+		  // 2) Handle standard page properties explicitly
+		  $propertyStubs = [
+			  'created'  => "// Format created timestamp\n" .
+							"echo date('Y-m-d H:i:s', \$value);\n",
+	  
+			  'modified' => "// Format modified timestamp\n" .
+							"echo date('Y-m-d H:i:s', \$value);\n",
+	  
+			  'name'     => "// Page title\n" .
+							"echo htmlspecialchars(\$value);\n",
+	  
+			  'id'       => "// Page ID\n" .
+							"echo (int) \$value;\n",
+	  
+			  'parent'   => "// Parent link\n" .
+							"if(\$value instanceof Page) {\n" .
+							"    echo '<a href=\"'.\$value->url.'\">'.htmlspecialchars(\$value->title).'</a>';\n" .
+							"}\n",
+	  
+			  'url'      => "// URL link\n" .
+							"echo '<a href=\"'.\$value.'\">'.htmlspecialchars(\$value).'</a>';\n",
+		  ];
+	  
+		  if (isset($propertyStubs[$fieldName])) {
+			  // Return header + that stub
+			  return $php . $propertyStubs[$fieldName];
+		  }
+	  
+		  // 3) Switch on fieldType for all other cases
+		  switch($fieldType) {
+	  
+			  case 'WireData':
+				  $php .= "// Render WireData as JSON\n";
+				  $php .= "echo '<pre style=\"white-space:pre-wrap;font-size:0.9em;margin:0;\">'\n"
+						. "   . htmlentities(json_encode((array)\$value->getArray(), JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE))\n"
+						. "   . '</pre>';\n";
+				  break;
+	  
+			  case 'FieldtypeText':
+			  case 'FieldtypeTextarea':
+			  case 'FieldtypeTextareaBasic':
+			  case 'FieldtypeMarkupAdmin':
+				  $php .= "// Textual output\n";
+				  $php .= "echo htmlspecialchars(\$value);\n";
+				  break;
+	  
+			  case 'FieldtypeInteger':
+			  case 'FieldtypeFloat':
+			  case 'FieldtypeDecimal':
+				  $php .= "// Numeric output\n";
+				  $php .= "echo \$value;\n";
+				  break;
+	  
+			  case 'FieldtypeCheckbox':
+			  case 'FieldtypeToggle':
+				  $php .= "// Boolean\n";
+				  $php .= "echo \$value ? 'Yes' : 'No';\n";
+				  break;
+	  
+			  case 'FieldtypeOptions':
+			  case 'FieldtypeSelect':
+			  case 'FieldtypeAsmSelect':
+				  $php .= "// Select (single or multiple)\n";
+				  $php .= "if(is_array(\$value)) {\n";
+				  $php .= "    echo implode(', ', array_map('htmlspecialchars', \$value));\n";
+				  $php .= "} else {\n";
+				  $php .= "    echo htmlspecialchars(\$value);\n";
+				  $php .= "}\n";
+				  break;
+	  
+			  case 'FieldtypePage':
+			  case 'FieldtypePageReference':
+				  $php .= "// Page reference(s)\n";
+				  $php .= "if(\$value instanceof PageArray || is_array(\$value)) {\n";
+				  $php .= "    foreach(\$value as \$p) echo '<a href=\"'.\$p->url.'\">'.htmlspecialchars(\$p->title).'</a><br>';\n";
+				  $php .= "} elseif(\$value instanceof Page) {\n";
+				  $php .= "    echo '<a href=\"'.\$value->url.'\">'.htmlspecialchars(\$value->title).'</a>';\n";
+				  $php .= "} else {\n";
+				  $php .= "    echo htmlspecialchars(\$value);\n";
+				  $php .= "}\n";
+				  break;
+	  
+			  case 'FieldtypeFile':
+			  case 'FieldtypeImage':
+				  $php .= "// File/Image output\n";
+				  $php .= "if(\$value && \$value->count()) {\n";
+				  $php .= "    foreach(\$value as \$file) {\n";
+				  $php .= "        echo '<a href=\"'.\$file->url.'\">';\n";
+				  $php .= "        if(\$file->width) echo '<img src=\"'.\$file->url.'\" style=\"max-width:100px\">';\n";
+				  $php .= "        else echo htmlspecialchars(\$file->name);\n";
+				  $php .= "        echo '</a> ';\n";
+				  $php .= "    }\n";
+				  $php .= "}\n";
+				  break;
+	  
+			  case 'FieldtypeDate':
+			  case 'FieldtypeDatetime':
+			  case 'FieldtypeTime':
+				  $php .= "// Date/time formatting\n";
+				  $php .= "if(\$value) echo date('Y-m-d H:i:s', \$value);\n";
+				  break;
+	  
+			  case 'FieldtypeEmail':
+				  $php .= "// Email link\n";
+				  $php .= "echo '<a href=\"mailto:'.htmlspecialchars(\$value).'\">'.htmlspecialchars(\$value).'</a>';\n";
+				  break;
+	  
+			  case 'FieldtypeUrl':
+				  $php .= "// External link\n";
+				  $php .= "if(\$value) echo '<a href=\"'.htmlspecialchars(\$value).'\" target=\"_blank\">'.htmlspecialchars(\$value).'</a>';\n";
+				  break;
+	  
+			  case 'FieldtypeRepeater':
+			  case 'FieldtypeRepeaterMatrix':
+			  case 'FieldtypePageTable':
+				  $php .= "// Repeater/PageTable count\n";
+				  $php .= "echo \$value->count() . ' items';\n";
+				  break;
+	  
+			  default:
+				  $php .= "// Fallback\n";
+				  $php .= "echo htmlspecialchars((string)\$value);\n";
+				  break;
+		  }
+	  
+		  return $php;
+	  }
 }
