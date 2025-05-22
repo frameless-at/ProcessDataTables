@@ -1,12 +1,12 @@
 <?php
 
 /**
- * TemplateGenerator
+ * TemplateGenerator for the Module ProccessDataTable
  *
- * Handles the creation of output template files for selected fields for the ProcessDataTable module.
+ * Handles the creation of output template files for selected fields for each DataTable.
  *
  * @author frameless Media
- * @version 0.4.0-RC
+ * @version 0.2.1-beta
  * @license MIT
  */
 
@@ -32,12 +32,19 @@ class TemplateGenerator {
 	protected $fieldtypeStubDir;
 	
 	/**
+	 * Global Configuration from module
+	 * @var array
+	 */
+	protected $config = [];
+	
+	/**
 	 * Aktualisierter Konstruktor
 	 */
-	public function __construct($templateDir) {
+	 public function __construct($templateDir, $config = []) {
 		$this->templateDir = rtrim($templateDir, '/') . '/';
 		$this->fieldtypeStubDir = __DIR__ . '/fieldtype_templates/';
 		$this->ensureTemplateDir();
+		$this->config = $config;
 	}
 
 	/**
@@ -159,6 +166,7 @@ class TemplateGenerator {
 		 }
 	 
 		 // 4) rendern
+		 $config = $this->config;
 		 ob_start();
 		 include $file;
 		 return ob_get_clean();
