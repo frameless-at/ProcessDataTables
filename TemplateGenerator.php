@@ -23,14 +23,20 @@ class TemplateGenerator {
 	 * @var string
 	 */
 	protected $templateDir;
-
+	
 	/**
-	 * Constructor
+	 * Directory path for default output templates
 	 *
-	 * @param string $templateDir
+	 * @var string
+	 */
+	protected $fieldtypeStubDir;
+	
+	/**
+	 * Aktualisierter Konstruktor
 	 */
 	public function __construct($templateDir) {
 		$this->templateDir = rtrim($templateDir, '/') . '/';
+		$this->fieldtypeStubDir = __DIR__ . '/fieldtype_templates/';
 		$this->ensureTemplateDir();
 	}
 
@@ -90,8 +96,9 @@ class TemplateGenerator {
 		}
 	
 		// 4) Decide which category this is for stub content
-		$real = $realFieldName ?: $slug; 
-	
+		$real = $realFieldName ?: $slug;
+		
+		// Fieldtype ermitteln
 		if ($real === 'meta') {
 			$typeClass = 'WireData';
 		} elseif (in_array($real, ['id','name','created','modified','parent','url'], true)) {
@@ -102,15 +109,28 @@ class TemplateGenerator {
 			// invalid field/property, skip stub
 			return;
 		}
-	
-		// 5) Generate the stub
-		$content = $this->getTemplateContent($typeClass, $real);
-	
-		// 6) Write it out
-		file_put_contents($file, $content);
-		chmod($file, 0664);
-		wire('log')->save('ProcessDataTable', "Wrote template file: {$file}");
-	}
+		
+		// 5) Prüfe, ob es für diesen Fieldtype ein Standard-Template gibt
+		$fieldtypeStub = $this->fieldtypeStubDir . $typeClass . self::TEMPLATE_SUFFIX;
+		
+		if (is_file($fieldtypeStub)) {
+			// Kopiere das Fieldtype-Stubb als Basis
+			$stub    = file_get_contents($fieldtypeStub);
+			$content = strtr($stub, [
+				'{{FIELDNAME}}' => $realFieldName,
+				'{{LABEL}}'     => $label,
+			]);
+			file_put_contents($file, $content);
+			chmod($file, 0664);
+			wire('log')->save('ProcessDataTable', "Copied fieldtype stub: {$fieldtypeStub} -> {$file}");
+		} else {
+			// 6) Fallback: Generate the stub wie bisher
+			$content = $this->getTemplateContent($typeClass, $realFieldName, $label);
+			file_put_contents($file, $content);
+			chmod($file, 0664);
+			wire('log')->save('ProcessDataTable', "Wrote template file: {$file}");
+		}
+	} 
 			
 	/**
 	 * Render the template file for a specific field
@@ -170,146 +190,40 @@ class TemplateGenerator {
 		 }
 	 }
 	 
-	   /* Build the PHP stub for a single column.
-	   *
-	   * @param string $fieldType   One of: "PageProperty", "WireData", or a Fieldtype short name
-	   * @param string $fieldName   The field or property name (for reference in comments)
-	   * @return string             Full PHP file contents
-	   */
-	  protected function getTemplateContent(string $fieldType, string $fieldName) {
-		  // 1) File header and docblock
-		  $php  = "<?php\n";
-		  $php .= "/**\n";
-		  $php .= " * Output template for field: {$fieldName}\n";
-		  $php .= " * Fieldtype: {$fieldType}\n";
-		  $php .= " * Available variable: \$value\n";
-		  $php .= " */\n\n";
-	  
-		  // 2) Handle standard page properties explicitly
-		  $propertyStubs = [
-			  'created'  => "// Format created timestamp\n" .
-							"echo date('Y-m-d H:i:s', \$value);\n",
-	  
-			  'modified' => "// Format modified timestamp\n" .
-							"echo date('Y-m-d H:i:s', \$value);\n",
-	  
-			  'name'     => "// Page title\n" .
-							"echo htmlspecialchars(\$value);\n",
-	  
-			  'id'       => "// Page ID\n" .
-							"echo (int) \$value;\n",
-	  
-			  'parent'   => "// Parent link\n" .
-							"if(\$value instanceof Page) {\n" .
-							"    echo '<a href=\"'.\$value->url.'\">'.htmlspecialchars(\$value->title).'</a>';\n" .
-							"}\n",
-	  
-			  'url'      => "// URL link\n" .
-							"echo '<a href=\"'.\$value.'\">'.htmlspecialchars(\$value).'</a>';\n",
-		  ];
-	  
-		  if (isset($propertyStubs[$fieldName])) {
-			  // Return header + that stub
-			  return $php . $propertyStubs[$fieldName];
-		  }
-	  
-		  // 3) Switch on fieldType for all other cases
-		  switch($fieldType) {
-	  
-			  case 'WireData':
-				  $php .= "// Render WireData as JSON\n";
-				  $php .= "echo '<pre style=\"white-space:pre-wrap;font-size:0.9em;margin:0;\">'\n"
-						. "   . htmlentities(json_encode((array)\$value->getArray(), JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE))\n"
-						. "   . '</pre>';\n";
-				  break;
-	  
-			  case 'FieldtypeText':
-			  case 'FieldtypeTextarea':
-			  case 'FieldtypeTextareaBasic':
-			  case 'FieldtypeMarkupAdmin':
-				  $php .= "// Textual output\n";
-				  $php .= "echo htmlspecialchars(\$value);\n";
-				  break;
-	  
-			  case 'FieldtypeInteger':
-			  case 'FieldtypeFloat':
-			  case 'FieldtypeDecimal':
-				  $php .= "// Numeric output\n";
-				  $php .= "echo \$value;\n";
-				  break;
-	  
-			  case 'FieldtypeCheckbox':
-			  case 'FieldtypeToggle':
-				  $php .= "// Boolean\n";
-				  $php .= "echo \$value ? 'Yes' : 'No';\n";
-				  break;
-	  
-			  case 'FieldtypeOptions':
-			  case 'FieldtypeSelect':
-			  case 'FieldtypeAsmSelect':
-				  $php .= "// Select (single or multiple)\n";
-				  $php .= "if(is_array(\$value)) {\n";
-				  $php .= "    echo implode(', ', array_map('htmlspecialchars', \$value));\n";
-				  $php .= "} else {\n";
-				  $php .= "    echo htmlspecialchars(\$value);\n";
-				  $php .= "}\n";
-				  break;
-	  
-			  case 'FieldtypePage':
-			  case 'FieldtypePageReference':
-				  $php .= "// Page reference(s)\n";
-				  $php .= "if(\$value instanceof PageArray || is_array(\$value)) {\n";
-				  $php .= "    foreach(\$value as \$p) echo '<a href=\"'.\$p->url.'\">'.htmlspecialchars(\$p->title).'</a><br>';\n";
-				  $php .= "} elseif(\$value instanceof Page) {\n";
-				  $php .= "    echo '<a href=\"'.\$value->url.'\">'.htmlspecialchars(\$value->title).'</a>';\n";
-				  $php .= "} else {\n";
-				  $php .= "    echo htmlspecialchars(\$value);\n";
-				  $php .= "}\n";
-				  break;
-	  
-			  case 'FieldtypeFile':
-			  case 'FieldtypeImage':
-				  $php .= "// File/Image output\n";
-				  $php .= "if(\$value && \$value->count()) {\n";
-				  $php .= "    foreach(\$value as \$file) {\n";
-				  $php .= "        echo '<a href=\"'.\$file->url.'\">';\n";
-				  $php .= "        if(\$file->width) echo '<img src=\"'.\$file->url.'\" style=\"max-width:100px\">';\n";
-				  $php .= "        else echo htmlspecialchars(\$file->name);\n";
-				  $php .= "        echo '</a> ';\n";
-				  $php .= "    }\n";
-				  $php .= "}\n";
-				  break;
-	  
-			  case 'FieldtypeDate':
-			  case 'FieldtypeDatetime':
-			  case 'FieldtypeTime':
-				  $php .= "// Date/time formatting\n";
-				  $php .= "if(\$value) echo date('Y-m-d H:i:s', \$value);\n";
-				  break;
-	  
-			  case 'FieldtypeEmail':
-				  $php .= "// Email link\n";
-				  $php .= "echo '<a href=\"mailto:'.htmlspecialchars(\$value).'\">'.htmlspecialchars(\$value).'</a>';\n";
-				  break;
-	  
-			  case 'FieldtypeUrl':
-				  $php .= "// External link\n";
-				  $php .= "if(\$value) echo '<a href=\"'.htmlspecialchars(\$value).'\" target=\"_blank\">'.htmlspecialchars(\$value).'</a>';\n";
-				  break;
-	  
-			  case 'FieldtypeRepeater':
-			  case 'FieldtypeRepeaterMatrix':
-			  case 'FieldtypePageTable':
-				  $php .= "// Repeater/PageTable count\n";
-				  $php .= "echo \$value->count() . ' items';\n";
-				  break;
-	  
-			  default:
-				  $php .= "// Fallback\n";
-				  $php .= "echo htmlspecialchars((string)\$value);\n";
-				  break;
-		  }
-	  
-		  return $php;
-	  }
+	 /**
+	  * Liefert den PHP-Stub für ein Property oder ein Fallback-Stubb für andere Typen.
+	  *
+	  * @param string $fieldType
+	  * @param string $fieldName
+	  * @param string|null $columnLabel
+	  * @return string PHP code für die Stub-Datei
+	  */
+	 protected function getTemplateContent(string $fieldType, string $fieldName, string $columnLabel = null) {
+		 // 1) Header mit Platzhaltern (für spätere Automatisierung)
+		 $php  = "<?php\n";
+		 $php .= "/**\n";
+		 $php .= " * Output template for field: {$fieldName}\n";
+		 if($columnLabel) $php .= " * Column label: {$columnLabel}\n";
+		 $php .= " * Fieldtype: {$fieldType}\n";
+		 $php .= " * Available variable: \$value\n";
+		 $php .= " */\n\n";
+	 
+		 // 2) Properties: DRY-Mapping
+		 $propertyMap = [
+			 'created'  => "echo date('Y-m-d H:i', \$value); // Created timestamp",
+			 'modified' => "echo date('Y-m-d H:i', \$value); // Modified timestamp",
+			 'id'       => "echo (int) \$value; // Page ID",
+			 'name'     => "echo htmlspecialchars(\$value); // Page name",
+			 'parent'   => "if(\$value instanceof Page) echo '<a href=\"'.\$value->url.'\">'.htmlspecialchars(\$value->title).'</a>'; // Parent Page link",
+			 'url'      => "echo '<a href=\"'.\$value.'\">'.htmlspecialchars(\$value).'</a>'; // Page URL link",
+		 ];
+		 if(array_key_exists($fieldName, $propertyMap)) {
+			 return $php . $propertyMap[$fieldName] . "\n";
+		 }
+	 
+		 // 3) Allgemeines Fallback-Template (immer sicher und neutral!)
+		 $php .= "// General fallback: outputs value as text\n";
+		 $php .= "echo htmlspecialchars((string)\$value);\n";
+		 return $php;
+	 }
 }
