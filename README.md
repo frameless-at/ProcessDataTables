@@ -35,7 +35,7 @@
 
 The module provides a global configuration interface where you can set formatting and output rules:
 
-![Module Config](screenshots/Bildschirmfoto-2025-05-23-um-09.15.22.jpeg)
+![Module Config](/screenshots/Bildschirmfoto-2025-05-23-um-09.15.22.jpeg)
 
 **Options include:**
 
