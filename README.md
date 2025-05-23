@@ -152,7 +152,7 @@ Quick and dirty, but it works:
 
 ## Uninstalling
 
-- When uninstalling the module via admin, all generated column templates and config fields are cleaned up. So maybe keep a backup of the already configured column templates and table configurations as a backup in a text file. For example:
+- When uninstalling the module via admin, all generated column templates and config fields are cleaned up. So maybe keep backups of the already configured column templates and backup table configurations in a text file. For example:
 ```
 Products
 --
@@ -178,7 +178,8 @@ colors=variants
 
 ## License
 
-GNU. Use and modify freely.
+This project is licensed under the terms of the [GNU General Public License v3.0](https://www.gnu.org/licenses/gpl-3.0.html).  
+See the [LICENSE](LICENSE) file for details.
 
 ---
 
