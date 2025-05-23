@@ -249,7 +249,7 @@ class ProcessDataTables extends Process {
 		$fieldsApi = wire('fields');
 		$defs = [
 			['data_template', 'FieldtypeText',  true,  'Data Template', 'Enter the template name, e.g. “product”'],
-			['data_selector', 'FieldtypeText',  false,   'Data Selector', 'Optional selector, e.g. status=published'],
+			['data_selector', 'FieldtypeText',  false,   'Data Selector', 'Optional selector, e.g. include=hidden'],
 			['columns',  true, 'FieldtypeTextarea', 'Columns',
 				"One per line, in the exact order you want your table columns to appear.\n"
 			  . "Syntax:\n"
