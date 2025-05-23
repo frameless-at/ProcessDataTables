@@ -35,7 +35,7 @@
 
 The module provides a global configuration interface where you can set formatting and output rules:
 
-![Module Config](/screenshots/Bildschirmfoto-2025-05-23-um-09.15.22.jpeg)
+![Module Config](/screenshots/Bildschirmfoto-2025-05-23-um-09.15.22.png)
 
 **Options include:**
 
@@ -55,12 +55,12 @@ The module provides a global configuration interface where you can set formattin
 
 1. **Go to DataTables in the Admin**  
    (If no tables exist, you’ll see:  
-   ![No Tables](screenshots/Bildschirmfoto-2025-05-23-um-09.15.46.jpeg) )
+   ![No Tables](screenshots/Bildschirmfoto-2025-05-23-um-09.15.46.png)
 
 2. **Add a New Table**  
    Click **Add one now** and complete the form:
 
-   ![Add New Table](screenshots/Bildschirmfoto-2025-05-23-um-09.16.46.jpeg)
+   ![Add New Table](screenshots/Bildschirmfoto-2025-05-23-um-09.16.46.png)
 
    - **Title**: Name for your DataTable instance
    - **Data Template**: The machine name of the ProcessWire template whose pages should be listed (e.g., `product`)
@@ -80,11 +80,11 @@ The module provides a global configuration interface where you can set formattin
 3. **Save and View the Table**  
    You’ll now see your custom DataTable in the admin, with sortable columns and all formatting applied:
 
-   ![Table Example](screenshots/Bildschirmfoto-2025-05-23-um-09.19.14.jpeg)
+   ![Table Example](screenshots/Bildschirmfoto-2025-05-23-um-09.19.14.png)
 
    Advanced: You can create additional tables for other templates, like orders:
 
-   ![Orders Table](screenshots/Bildschirmfoto-2025-05-23-um-09.23.44.jpeg)
+   ![Orders Table](screenshots/Bildschirmfoto-2025-05-23-um-09.23.44.png)
 
 ---
 
@@ -99,16 +99,37 @@ The module provides a global configuration interface where you can set formattin
 
 ## Example Screenshots
 
-| Config Screen | Add Table | Edit Table | Table Output | Orders Output |
-|--------------|-----------|------------|--------------|--------------|
-| ![Config](screenshots/Bildschirmfoto-2025-05-23-um-09.15.22.jpeg) | ![Add](screenshots/Bildschirmfoto-2025-05-23-um-09.16.46.jpeg) | ![Edit](screenshots/Bildschirmfoto-2025-05-23-um-09.17.10.jpeg) | ![Products](screenshots/Bildschirmfoto-2025-05-23-um-09.19.14.jpeg) | ![Orders](screenshots/Bildschirmfoto-2025-05-23-um-09.23.44.jpeg) |
+### Config Screen
+![Config](screenshots/Bildschirmfoto-2025-05-23-um-09.15.22.png)
+
+### Add Table
+![Add](screenshots/Bildschirmfoto-2025-05-23-um-09.16.46.png)
+
+### Edit Table
+![Edit](screenshots/Bildschirmfoto-2025-05-23-um-09.17.10.png)
+
+### Generated Table Output without editing Column Templates
+![Products](screenshots/Bildschirmfoto-2025-05-23-um-09.19.14.png)
+
+### Orders Output with minor edits of the Column Templates
+![Orders](screenshots/Bildschirmfoto-2025-05-23-um-09.23.44.png) 
 
 ---
 
-## Updating / Uninstalling
+## Uninstalling
 
-- To update, just replace the module files and refresh in ProcessWire.
-- To uninstall, remove the module via admin. All generated templates and config fields are cleaned up.
+- When uninstalling the module via admin, all generated column templates and config fields are cleaned up. So maybe keep a backup of the already configured column templates and table configurations as a backup in a text file. For example:
+```
+Products
+--
+product
+--
+product_image
+Product=id
+Shortcopy=product_description
+rockcommerce_net
+colors=variants
+```
 
 ---
 
