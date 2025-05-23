@@ -14,7 +14,9 @@
 - No front-end dependencies—entirely native to ProcessWire admin
 - Fast and extensible, built for easy customization
 
+
 ---
+
 
 ## Installation
 
@@ -29,7 +31,9 @@
 3. **(Optional) Configure Global Settings**  
    - Go to **Modules > ProcessDataTables Config** for global output options (see below).
 
+
 ---
+
 
 ## Module Configuration
 
@@ -49,7 +53,9 @@ The module provides a global configuration interface where you can set formattin
 - **Max Length for Text/Textarea Output:** Truncate long strings as needed.
 - **Strip HTML from Textarea:** Remove HTML tags if desired.
 
+
 ---
+
 
 ## Creating a DataTable
 
@@ -86,8 +92,8 @@ The module provides a global configuration interface where you can set formattin
 ![Config](img/ProcessDataTables_6.png)
 
 
-
 ---
+
 
 ## Customizing Output (Column Templates)
 
@@ -122,7 +128,9 @@ Quick and dirty, but it works:
 
 ![Add](img/ProcessDataTables_7.png)
 
+
 ---
+
 
 ## Another example using the incredible module [RockCommerce](https://www.baumrock.com/processwire/module/rockcommerce/) from Bernhard Baumrock
 
@@ -138,7 +146,9 @@ Quick and dirty, but it works:
 
 ![Orders](img/ProcessDataTables_10.png) 
 
+
 ---
+
 
 ## Uninstalling
 
@@ -155,7 +165,9 @@ rockcommerce_net
 colors=variants
 ```
 
+
 ---
+
 
 ## Notes
 
@@ -166,7 +178,7 @@ colors=variants
 
 ## License
 
-MIT. Use and modify freely.
+GNU. Use and modify freely.
 
 ---
 
