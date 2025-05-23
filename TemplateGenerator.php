@@ -6,7 +6,7 @@
  * Handles the creation of output template files for selected fields for each DataTable.
  *
  * @author frameless Media
- * @version 0.2.1-beta
+ * @version 0.3.0
  * @license MIT
  */
 
@@ -72,12 +72,12 @@ class TemplateGenerator {
 			}
 	
 			if (unlink($templateFile)) {
-				wire('log')->save('ProcessDataTable', "Template gelöscht: $templateFile");
+				wire('log')->save('ProcessDataTables', "Template gelöscht: $templateFile");
 			} else {
-				wire('log')->save('ProcessDataTable', "Fehler beim Löschen des Templates: $templateFile");
+				wire('log')->save('ProcessDataTables', "Fehler beim Löschen des Templates: $templateFile");
 			}
 		} else {
-			wire('log')->save('ProcessDataTable', "Template existiert nicht und konnte nicht gelöscht werden: $templateFile");
+			wire('log')->save('ProcessDataTables', "Template existiert nicht und konnte nicht gelöscht werden: $templateFile");
 		}
 	}
 	 
@@ -99,7 +99,7 @@ class TemplateGenerator {
 		// 3) Ensure directory
 		if (!is_dir($this->templateDir)) {
 			mkdir($this->templateDir, 0755, true);
-			wire('log')->save('ProcessDataTable', "Created template directory: {$this->templateDir}");
+			wire('log')->save('ProcessDataTables', "Created template directory: {$this->templateDir}");
 		}
 	
 		// 4) Decide which category this is for stub content
@@ -129,13 +129,13 @@ class TemplateGenerator {
 			]);
 			file_put_contents($file, $content);
 			chmod($file, 0664);
-			wire('log')->save('ProcessDataTable', "Copied fieldtype stub: {$fieldtypeStub} -> {$file}");
+			wire('log')->save('ProcessDataTables', "Copied fieldtype stub: {$fieldtypeStub} -> {$file}");
 		} else {
 			// 6) Fallback: Generate the stub wie bisher
 			$content = $this->getTemplateContent($typeClass, $realFieldName, $label);
 			file_put_contents($file, $content);
 			chmod($file, 0664);
-			wire('log')->save('ProcessDataTable', "Wrote template file: {$file}");
+			wire('log')->save('ProcessDataTables', "Wrote template file: {$file}");
 		}
 	} 
 			
@@ -154,14 +154,14 @@ class TemplateGenerator {
 	 
 		 // 2) falls nicht existent, versuchen zu erzeugen
 		 if (!file_exists($file)) {
-			 wire('log')->save('ProcessDataTable', "Template not found, creating: $file");
+			 wire('log')->save('ProcessDataTables', "Template not found, creating: $file");
 			 // Da createTemplateFile slugify auf Label macht, kann Label direkt übergeben werden:
 			 $this->createTemplateFile($label);
 		 }
 	 
 		 // 3) nach erneutem Check
 		 if (!file_exists($file)) {
-			 wire('log')->save('ProcessDataTable', "Failed to create template: $file");
+			 wire('log')->save('ProcessDataTables', "Failed to create template: $file");
 			 return htmlentities($value);
 		 }
 	 
@@ -177,7 +177,7 @@ class TemplateGenerator {
 	  */
 	 public function deleteTemplateDirectory() {
 		 if (!is_dir($this->templateDir)) {
-			 wire('log')->save('ProcessDataTable', "Template directory does not exist: " . $this->templateDir);
+			 wire('log')->save('ProcessDataTables', "Template directory does not exist: " . $this->templateDir);
 			 return;
 		 }
 	 
@@ -186,15 +186,15 @@ class TemplateGenerator {
 		 foreach ($files as $file) {
 			 if (is_file($file)) {
 				 unlink($file);
-				 wire('log')->save('ProcessDataTable', "Template file deleted: $file");
+				 wire('log')->save('ProcessDataTables', "Template file deleted: $file");
 			 }
 		 }
 	 
 		 // Remove the directory itself
 		 if (rmdir($this->templateDir)) {
-			 wire('log')->save('ProcessDataTable', "Template directory deleted: " . $this->templateDir);
+			 wire('log')->save('ProcessDataTables', "Template directory deleted: " . $this->templateDir);
 		 } else {
-			 wire('log')->save('ProcessDataTable', "Failed to delete template directory: " . $this->templateDir);
+			 wire('log')->save('ProcessDataTables', "Failed to delete template directory: " . $this->templateDir);
 		 }
 	 }
 	 

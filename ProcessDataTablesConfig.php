@@ -1,19 +1,22 @@
 <?php
 
 /**
- * ProcessDataTableConfig
+ * ProcessDataTablesConfig
  *
- * Simple config module for ProcessDataTable global settings.
- * 
+ * Simple config module for ProcessDataTables global settings.
+ *
  * @author frameless Media
+ * @version 0.3.0
+ * @license MIT
  */
-class ProcessDataTableConfig extends ModuleConfig {
+ 
+class ProcessDataTablesConfig extends ModuleConfig {
 
 	public static function getModuleInfo() {
 		return [
-			'title' => 'ProcessDataTable Config',
+			'title' => 'ProcessDataTables Config',
 			'version' => 1,
-			'summary' => 'Global configuration for ProcessDataTable module.',
+			'summary' => 'Global configuration for ProcessDataTables module.',
 			'autoload' => false,
 			'singular' => true,
 		];

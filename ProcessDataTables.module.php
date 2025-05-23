@@ -9,10 +9,11 @@ require_once __DIR__ . '/TemplateGenerator.php';
  * in a table within the admin area.
  *
  * @author frameless Media
- * @version 0.2.1-beta
+ * @version 0.3.0
  * @license MIT
  */
-class ProcessDataTable extends Process {
+ 
+class ProcessDataTables extends Process {
 	
 	
 	/** @var string Where generated templates live */
@@ -30,9 +31,9 @@ class ProcessDataTable extends Process {
 	/** Module info tells PW to auto-create /setup/data-tables/ */
 	public static function getModuleInfo() {
 		return [
-			'title'      => 'ProcessDataTable',
-			'version'    => '0.2.1-beta',
-			'summary'    => 'Display selected fields of a template in a backend table.',
+			'title'      => 'ProcessDataTables',
+			'version'    => '0.3.0',
+			'summary'    => 'Displays customizable backend tables for any ProcessWire template with flexible column selection, per-field output templates, and global formatting options.',
 			'author'     => 'frameless Media',
 			'autoload'   => true,
 			'requires'   => ['ProcessWire>=3.0.0','MarkupAdminDataTable'],  
