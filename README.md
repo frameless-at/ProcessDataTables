@@ -28,8 +28,9 @@
    - Find **ProcessDataTables** in the list and click **Install**.
    - A new menu item “DataTables” will appear in your admin.
 
-3. **(Optional) Configure Global Settings**  
-   - Go to **Modules > ProcessDataTables Config** for global output options (see below).
+
+3. **Configure Global Settings (Optional)**  
+   Customize global output options to your needs (see below).
 
 
 ---
