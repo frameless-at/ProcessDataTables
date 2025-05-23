@@ -13,7 +13,7 @@
       $first = $value->first();
       if($first && $first->ext && $first->url) {
           // Thumbnail für das erste Bild
-          echo '<a href="'.$first->url.'"><img src="'.$first->url.'" style="max-width:'.$thumbWidth.'px"></a> ';
+          echo '<a href="'.$first->url.'"><img src="'.$first->width($thumbWidth)->url.'"></a> ';
       } else {
           echo '<a href="'.$first->url.'">'.htmlspecialchars($first->name).'</a> ';
       }
