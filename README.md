@@ -34,6 +34,7 @@
 ## Module Configuration
 
 The module provides a global configuration interface where you can set formatting and output rules:
+
 ![Module Config](img/ProcessDataTables_1.png)
 
 **Options include:**
@@ -53,13 +54,16 @@ The module provides a global configuration interface where you can set formattin
 ## Creating a DataTable
 
 1. **Go to DataTables in the Admin**  
-   (If no tables exist, you’ll see:  
+   The path where its displayed is up to you, per default it is located in /admin/setup/. If no tables exist, you’ll see:
+   
    ![No Tables](img/ProcessDataTables_2.png)
 
-2. **Add a New Table**  
-   Click **Add one now** and complete the form:
+3. **Add a New Table**  
+   Click **Add one now** and complete the forms:
 
    ![Add New Table](img/ProcessDataTables_3.png)
+
+   ![Orders Table Config](img/ProcessDataTables_5.png)
 
    - **Title**: Name for your DataTable instance
    - **Data Template**: The machine name of the ProcessWire template whose pages should be listed (e.g., `product`)
@@ -76,41 +80,62 @@ The module provides a global configuration interface where you can set formattin
 	   colors=variants
 	   ```
 
-3. **Save and View the Table**  
-   You’ll now see your custom DataTable in the admin, with sortable columns and all formatting applied:
+4. **Save and View the Table**  
+   You’ll now see your custom DataTable in the admin, with sortable columns and all default formatting (depending on fieldtypes) applied:
 
-   ![Table Example](img/ProcessDataTables_4.png)
+![Config](img/ProcessDataTables_6.png)
 
-   Advanced: You can create additional tables for other templates, like orders:
 
-   ![Orders Table](img/ProcessDataTables_5.png)
 
 ---
 
 ## Customizing Output (Column Templates)
 
 - For each column, a **PHP template stub** is auto-generated (in `/site/modules/ProcessDataTables/column_templates/`).
+  The stubs are generated depending on the ProcessWire FieldType of the templates field you defined as a column.
+  Example of the stub created for `colors=variants`:
+```
+<?php
+/**
+* Output template for field: variants
+* Column label: colors
+* Fieldtype: FieldtypeRepeater
+* Available variable: $value
+*/
+echo $value->count();
+```
+
 - To customize output, edit the corresponding `.column.php` file for your column.
 - These templates have access to the field value (`$value`) and module config variables.
-- Example: To display a page reference as a colored badge, or format currency, just adjust the PHP code in that file.
+- To display the `color`value of the FieldtypeRepeater entries as colored badges, just adjust the PHP code in that file above to something like:
+ ```
+<?php
+/**
+* Output template for field: variants
+* Column label: colors
+* Fieldtype: FieldtypeRepeater
+* Available variable: $value
+*/
+echo $value->each("<span style='background-color:{color}; color:#fff'>&nbsp;&nbsp;&nbsp;&nbsp;</span> ");
+```
+Quick and dirty, but it works:
+
+![Add](img/ProcessDataTables_7.png)
 
 ---
 
-## Example Screenshots
+## Another example using the incredible module [RockCommerce](https://www.baumrock.com/processwire/module/rockcommerce/) from Bernhard Baumrock
 
 ### Config Screen
-![Config](img/ProcessDataTables_6.png)
 
-### Add Table
-![Add](img/ProcessDataTables_7.png)
-
-### Edit Table
 ![Edit](img/ProcessDataTables_8.png)
 
 ### Generated Table Output without editing Column Templates
+
 ![Products](img/ProcessDataTables_9.png)
 
 ### Orders Output with minor edits of the Column Templates
+
 ![Orders](img/ProcessDataTables_10.png) 
 
 ---
