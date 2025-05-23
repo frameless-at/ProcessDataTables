@@ -1,4 +1,4 @@
-# ProcessDataTables for ProcessWire
+# The Swiss Army Knife for Data Visualization 
 
 **ProcessDataTables** is a flexible ProcessWire admin module that lets you display fully customizable data tables for any template, directly in the backend. Define exactly which fields or properties appear as columns, add per-column output templates, and apply global formatting for a perfect fit to your workflow.
 
@@ -24,10 +24,7 @@
    Clone or download this repository and place the module folder into your `/site/modules/` directory.
 
 2. **Install the Module**  
-   - In ProcessWire Admin, go to **Modules > Refresh**.
-   - Find **ProcessDataTables** in the list and click **Install**.
-   - A new menu item “DataTables” will appear in your admin.
-
+   A new menu item “DataTables” will appear in your admin under /admin/setup/.
 
 3. **Configure Global Settings (Optional)**  
    Customize global output options to your needs (see below).
