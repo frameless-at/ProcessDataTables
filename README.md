@@ -34,8 +34,7 @@
 ## Module Configuration
 
 The module provides a global configuration interface where you can set formatting and output rules:
-
-![Module Config](/screenshots/Bildschirmfoto-2025-05-23-um-09.15.22.png)
+![Module Config](img/ProcessDataTables_1.png)
 
 **Options include:**
 
@@ -55,12 +54,12 @@ The module provides a global configuration interface where you can set formattin
 
 1. **Go to DataTables in the Admin**  
    (If no tables exist, you’ll see:  
-   ![No Tables](screenshots/Bildschirmfoto-2025-05-23-um-09.15.46.png)
+   ![No Tables](img/ProcessDataTables_2.png)
 
 2. **Add a New Table**  
    Click **Add one now** and complete the form:
 
-   ![Add New Table](screenshots/Bildschirmfoto-2025-05-23-um-09.16.46.png)
+   ![Add New Table](img/ProcessDataTables_3.png)
 
    - **Title**: Name for your DataTable instance
    - **Data Template**: The machine name of the ProcessWire template whose pages should be listed (e.g., `product`)
@@ -80,11 +79,11 @@ The module provides a global configuration interface where you can set formattin
 3. **Save and View the Table**  
    You’ll now see your custom DataTable in the admin, with sortable columns and all formatting applied:
 
-   ![Table Example](screenshots/Bildschirmfoto-2025-05-23-um-09.19.14.png)
+   ![Table Example](img/ProcessDataTables_4.png)
 
    Advanced: You can create additional tables for other templates, like orders:
 
-   ![Orders Table](screenshots/Bildschirmfoto-2025-05-23-um-09.23.44.png)
+   ![Orders Table](img/ProcessDataTables_5.png)
 
 ---
 
@@ -100,19 +99,19 @@ The module provides a global configuration interface where you can set formattin
 ## Example Screenshots
 
 ### Config Screen
-![Config](screenshots/Bildschirmfoto-2025-05-23-um-09.15.22.png)
+![Config](img/ProcessDataTables_6.png)
 
 ### Add Table
-![Add](screenshots/Bildschirmfoto-2025-05-23-um-09.16.46.png)
+![Add](img/ProcessDataTables_7.png)
 
 ### Edit Table
-![Edit](screenshots/Bildschirmfoto-2025-05-23-um-09.17.10.png)
+![Edit](img/ProcessDataTables_8.png)
 
 ### Generated Table Output without editing Column Templates
-![Products](screenshots/Bildschirmfoto-2025-05-23-um-09.19.14.png)
+![Products](img/ProcessDataTables_9.png)
 
 ### Orders Output with minor edits of the Column Templates
-![Orders](screenshots/Bildschirmfoto-2025-05-23-um-09.23.44.png) 
+![Orders](img/ProcessDataTables_10.png) 
 
 ---
 
