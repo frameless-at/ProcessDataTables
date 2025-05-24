@@ -157,14 +157,14 @@ class ProcessDataTables extends Process {
 		$table->headerRow($header);
 		
 		// Data-Rows
+		$templateClosures = $this->loadColumnTemplates($columns);
+		
 		foreach($pagesToShow as $page) {
 			$row = [];
 			foreach($columns as $col) {
+				$slug = $col['slug'];
 				$value = $page->get($col['realName']);
-				$row[] = $this->templateGenerator->renderTemplateFile(
-					$col['slug'], // **Label** als Schlüssel
-					$value
-				);
+				$row[] = $templateClosures[$slug]($value);
 			}
 			$table->row($row);
 		}
@@ -397,4 +397,49 @@ class ProcessDataTables extends Process {
 	 
 		 return $out;
 	 }	 
+	 
+	 /**
+	  * Lädt alle Spalten-Templates als callables, einmal pro Spalte.
+	  * Übergibt beim Aufruf sowohl den Zellen-Wert als auch die Modul-Konfiguration.
+	  *
+	  * @param array $columns Ausgabe von parseColumns()
+	  * @return array [slug => function($value): string]
+	  */
+	 protected function loadColumnTemplates(array $columns): array {
+		 // 1) Modul-Konfiguration einlesen
+		 $config = wire('modules')->getModuleConfigData($this);
+	 
+		 $templateClosures = [];
+	 
+		 foreach ($columns as $col) {
+			 $slug         = $col['slug'];
+			 $templateFile = $this->templateGenerator->getTemplateFilePath($slug);
+	 
+			 if (is_file($templateFile)) {
+				 // 2) Einmal include: Stub-Datei muss eine Closure zurückliefern
+				 $stubFunc = include $templateFile;
+	 
+				 // Fallback auf alten Modus, falls kein Callable zurückkommt
+				 if (!is_callable($stubFunc)) {
+					 $stubFunc = function($value) use ($templateFile) {
+						 ob_start();
+						 include $templateFile;
+						 return ob_get_clean();
+					 };
+				 }
+			 } else {
+				 // 3) Standard-Fallback: roher, escaped Wert
+				 $stubFunc = function($value) {
+					 return htmlentities((string) $value);
+				 };
+			 }
+	 
+			 // 4) Wrap­per, der beim Aufruf auch die Config mitgibt
+			 $templateClosures[$slug] = function($value) use ($stubFunc, $config) {
+				 return $stubFunc($value, $config);
+			 };
+		 }
+	 
+		 return $templateClosures;
+	 }
 }

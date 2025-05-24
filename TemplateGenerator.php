@@ -46,7 +46,13 @@ class TemplateGenerator {
 		$this->ensureTemplateDir();
 		$this->config = $config;
 	}
-
+	
+	public function getTemplateFilePath($slug) {
+		$slug = preg_replace('/[^a-z0-9]+/i','_', strtolower($slug));
+		$slug = trim($slug, '_');
+		return $this->templateDir . $slug . self::TEMPLATE_SUFFIX;
+	}
+	
 	/**
 	 * Ensure that the output template directory exists
 	 */
