@@ -87,64 +87,61 @@ class TemplateGenerator {
 		}
 	}
 	 
-/**
-	 * Create or overwrite a single-column stub.
-	 *
-	 * @param string      $label          The human-readable column label (used for filename)
-	 * @param string|null $realFieldName  The actual field/property name for type detection
-	 */
-	public function createTemplateFile(string $label, string $realFieldName = null) {
-		// 1) Determine safe filename: slugify the label
-		$slug = preg_replace('/[^a-z0-9]+/i','_', trim(strtolower($label)));
-		$slug = trim($slug, '_');
-		$file = $this->templateDir . $slug . self::TEMPLATE_SUFFIX;	
-			
-		// 2) Bail early if it already exists
-		if (is_file($file)) return;
-	
-		// 3) Ensure directory
-		if (!is_dir($this->templateDir)) {
-			mkdir($this->templateDir, 0755, true);
-			wire('log')->save('ProcessDataTables', "Created template directory: {$this->templateDir}");
-		}
-	
-		// 4) Decide which category this is for stub content
-		$real = $realFieldName ?: $slug;
-		
-		// Fieldtype ermitteln
-		if ($real === 'meta') {
-			$typeClass = 'WireData';
-		} elseif (in_array($real, ['id','name','created','modified','parent','url'], true)) {
-			$typeClass = 'PageProperty';
-		} elseif ($field = wire('fields')->get($real)) {
-			$typeClass = $field->type->className; 
-		} else {
-			// invalid field/property, skip stub
-			return;
-		}
-		
-		// 5) Prüfe, ob es für diesen Fieldtype ein Standard-Template gibt
-		$fieldtypeStub = $this->fieldtypeStubDir . $typeClass . self::TEMPLATE_SUFFIX;
-		
-		if (is_file($fieldtypeStub)) {
-			// Kopiere das Fieldtype-Stubb als Basis
-			$stub    = file_get_contents($fieldtypeStub);
-			$content = strtr($stub, [
-				'{{FIELDNAME}}' => $realFieldName,
-				'{{LABEL}}'     => $label,
-			]);
-			file_put_contents($file, $content);
-			chmod($file, 0664);
-			wire('log')->save('ProcessDataTables', "Copied fieldtype stub: {$fieldtypeStub} -> {$file}");
-		} else {
-			// 6) Fallback: Generate the stub wie bisher
-			$content = $this->getTemplateContent($typeClass, $realFieldName, $label);
-			file_put_contents($file, $content);
-			chmod($file, 0664);
-			wire('log')->save('ProcessDataTables', "Wrote template file: {$file}");
-		}
-	} 
-			
+	 /**
+	  * Create or overwrite a single-column stub as a Closure file.
+	  *
+	  * @param string $label          Human-readable column label (filename basis)
+	  * @param string $realFieldName  Actual field/property name for type detection
+	  */
+	 public function createTemplateFile(string $label, string $realFieldName) {
+		 // 1) Build safe filename
+		 $slug = preg_replace('/[^a-z0-9]+/i', '_', trim(strtolower($label)));
+		 $slug = trim($slug, '_');
+		 $file = $this->templateDir . $slug . self::TEMPLATE_SUFFIX;
+	 
+		 // 2) Skip if already exists
+		 if (is_file($file)) return;
+	 
+		 // 3) Ensure output directory
+		 if (!is_dir($this->templateDir)) {
+			 mkdir($this->templateDir, 0755, true);
+			 wire('log')->save('ProcessDataTables', "Created template directory: {$this->templateDir}");
+		 }
+	 
+		 // 4) Determine type class
+		 $real = $realFieldName;
+		 if ($real === 'meta') {
+			 $typeClass = 'WireData';
+		 } elseif (in_array($real, ['id','name','created','modified','parent','url'], true)) {
+			 $typeClass = 'PageProperty';
+		 } elseif ($field = wire('fields')->get($real)) {
+			 $typeClass = $field->type->className;
+		 } else {
+			 // invalid, no stub
+			 return;
+		 }
+	 
+		 // 5) If a core stub exists, copy & replace placeholders
+		 $stubPath = $this->fieldtypeStubDir . $typeClass . self::TEMPLATE_SUFFIX;
+		 if (is_file($stubPath)) {
+			 $raw = file_get_contents($stubPath);
+			 // replace tokens
+			 $raw = strtr($raw, [
+				 '{{FIELDNAME}}' => $realFieldName,
+				 '{{LABEL}}'     => $label,
+			 ]);
+			 file_put_contents($file, $raw);
+			 chmod($file, 0664);
+			 wire('log')->save('ProcessDataTables', "Copied fieldtype stub: {$stubPath} -> {$file}");
+			 return;
+		 }
+	 
+		 // 6) Fallback: generate Closure stub via getTemplateContent()
+		 $content = $this->getTemplateContent($typeClass, $realFieldName, $label);
+		 file_put_contents($file, $content);
+		 chmod($file, 0664);
+		 wire('log')->save('ProcessDataTables', "Wrote fallback template file: {$file}");
+	 }			
 	/**
 	 * Render the template file for a specific field
 	 *
@@ -205,39 +202,44 @@ class TemplateGenerator {
 	 }
 	 
 	 /**
-	  * Liefert den PHP-Stub für ein Property oder ein Fallback-Stubb für andere Typen.
+	  * Creates PHP stub for a Page property or a fallback stubb for unknown types.
 	  *
 	  * @param string $fieldType
 	  * @param string $fieldName
 	  * @param string|null $columnLabel
-	  * @return string PHP code für die Stub-Datei
+	  * @return string PHP code for stub file
 	  */
-	 protected function getTemplateContent(string $fieldType, string $fieldName, string $columnLabel = null) {
-		 // 1) Header mit Platzhaltern (für spätere Automatisierung)
-		 $php  = "<?php\n";
-		 $php .= "/**\n";
-		 $php .= " * Output template for field: {$fieldName}\n";
-		 if($columnLabel) $php .= " * Column label: {$columnLabel}\n";
-		 $php .= " * Fieldtype: {$fieldType}\n";
-		 $php .= " * Available variable: \$value\n";
-		 $php .= " */\n\n";
-	 
-		 // 2) Properties: DRY-Mapping
-		 $propertyMap = [
-			 'created'  => "echo date('Y-m-d H:i', \$value); // Created timestamp",
-			 'modified' => "echo date('Y-m-d H:i', \$value); // Modified timestamp",
-			 'id'       => "echo (int) \$value; // Page ID",
-			 'name'     => "echo htmlspecialchars(\$value); // Page name",
-			 'parent'   => "if(\$value instanceof Page) echo '<a href=\"'.\$value->url.'\">'.htmlspecialchars(\$value->title).'</a>'; // Parent Page link",
-			 'url'      => "echo '<a href=\"'.\$value.'\">'.htmlspecialchars(\$value).'</a>'; // Page URL link",
-		 ];
-		 if(array_key_exists($fieldName, $propertyMap)) {
-			 return $php . $propertyMap[$fieldName] . "\n";
-		 }
-	 
-		 // 3) Allgemeines Fallback-Template (immer sicher und neutral!)
-		 $php .= "// General fallback: outputs value as text\n";
-		 $php .= "echo htmlspecialchars((string)\$value);\n";
-		 return $php;
-	 }
-}
+	  protected function getTemplateContent(string $fieldType, string $fieldName, string $columnLabel = null) {
+		  $php  = "<?php\n";
+		  $php .= "/**\n";
+		  $php .= " * Output template for field: {$fieldName}\n";
+		  if ($columnLabel) {
+			  $php .= " * Column label: {$columnLabel}\n";
+		  }
+		  $php .= " * Fieldtype: {$fieldType}\n";
+		  $php .= " * Available vars: \$value, \$config\n";
+		  $php .= " */\n\n";
+		  $php .= "return function(\$value, \$config = []) {\n";
+	  
+		  $propertyMap = [
+			  'created'  => "	return date('Y-m-d H:i', \$value);",
+			  'modified' => "	return date('Y-m-d H:i', \$value);",
+			  'id'       => "	return (string)(int)\$value;",
+			  'name'     => "	return htmlspecialchars((string)\$value);",
+			  'parent'   => "	if(\$value instanceof Page) {
+		  		return '<a href=\"'.\$value->url.'\">'.htmlspecialchars(\$value->title).'</a>';
+	  			} else {
+		  			return ''; }",
+			  'url'      => "	return '<a href=\"'.\$value.'\">'.htmlspecialchars(\$value).'</a>';",
+		  ];
+	  
+		  if (array_key_exists($fieldName, $propertyMap)) {
+			  $php .= $propertyMap[$fieldName] . "\n";
+		  } else {
+			  $php .= "	return htmlspecialchars((string)\$value);\n";
+		  }
+	  
+		  $php .= "};\n";
+		  return $php;
+	  }
+  }

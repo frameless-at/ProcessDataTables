@@ -6,7 +6,8 @@
  * Available variable: $value
  * Uses global config: $config['textareaStripTags'], $config['textareaMaxLength']
  */
-
-$val = $config['textareaStripTags'] ? strip_tags($value) : $value;
-$max = $config['textareaMaxLength'] ?? 120;
-echo htmlspecialchars(mb_strimwidth((string)$val, 0, $max, '…'));
+return function($value, $config = []) {
+    $val = $config['textareaStripTags'] ? strip_tags($value) : $value;
+    $max = $config['textareaMaxLength'] ?? 120;
+    return htmlspecialchars(mb_strimwidth((string)$val, 0, $max, '…'));
+};
