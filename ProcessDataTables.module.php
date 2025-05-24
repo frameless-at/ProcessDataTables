@@ -64,7 +64,7 @@ class ProcessDataTables extends Process {
 
 	}
 
-/**
+	/**
 	 * Renders the DataTables overview interface.
 	 *
 	 * Fetches all DataTable instances under the “data-tables” parent, determines which
@@ -74,13 +74,6 @@ class ProcessDataTables extends Process {
 	 *   2. The data table itself, built via MarkupAdminDataTable, showing selected Columns
 	 *      and virtual columns for the active instance.
 	 *   3. An “Edit” link for quick editing of the active instance.
-	 *
-	 * @return string HTML markup for the dropdown selector, table, and edit link.
-	 */
-	 /*
-	
-	/**
-	 * Renders the DataTables overview interface using the unified "columns" config.
 	 *
 	 * @return string HTML markup for the dropdown selector, table, and edit link.
 	 */
@@ -181,21 +174,16 @@ class ProcessDataTables extends Process {
 	 * @param HookEvent $event
 	 */
 	public function setTemplateForNewChild(HookEvent $event) {
-		/** @var Page $page */
 		$page = $event->arguments(0);
-		// only care about brand-new pages under /setup/data-tables/
 		if(!$page->isNew()) return;
 		if(!$page->parent || $page->parent->name !== 'data-tables') return;
-		// force the correct template
 		$page->template = wire('templates')->get('datatable');
-		// done – ProcessWire will now save it with the right template
 	}
 
 	public function validateDataTemplate(HookEvent $event) {
 		$page = $event->arguments(0);
 		if($page->template->name !== 'datatable') return;
 	
-		// SKIP on the initial "new page" save
 		if($page->isNew() || (string) $this->input->get->new === '1') {
 			return;
 		}
@@ -398,13 +386,13 @@ class ProcessDataTables extends Process {
 		 return $out;
 	 }	 
 	 
-	 /**
-	  * Lädt alle Spalten-Templates als callables, einmal pro Spalte.
-	  * Übergibt beim Aufruf sowohl den Zellen-Wert als auch die Modul-Konfiguration.
-	  *
-	  * @param array $columns Ausgabe von parseColumns()
-	  * @return array [slug => function($value): string]
-	  */
+	/**
+	 * Loads all column templates as callables, once per column.
+	 * Passes both the cell value and the module configuration to each callable.
+	 *
+	 * @param array $columns Output from parseColumns()
+	 * @return array [slug => function($value, $config): string]
+	 */
 	 protected function loadColumnTemplates(array $columns): array {
 		 // 1) Modul-Konfiguration einlesen
 		 $config = wire('modules')->getModuleConfigData($this);
@@ -416,10 +404,10 @@ class ProcessDataTables extends Process {
 			 $templateFile = $this->templateGenerator->getTemplateFilePath($slug);
 	 
 			 if (is_file($templateFile)) {
-				 // 2) Einmal include: Stub-Datei muss eine Closure zurückliefern
+				// 2) Include once: stub file must return a Closure
 				 $stubFunc = include $templateFile;
 	 
-				 // Fallback auf alten Modus, falls kein Callable zurückkommt
+				 // Fallback to the old mode if no callable is returned
 				 if (!is_callable($stubFunc)) {
 					 $stubFunc = function($value) use ($templateFile) {
 						 ob_start();
@@ -428,13 +416,13 @@ class ProcessDataTables extends Process {
 					 };
 				 }
 			 } else {
-				 // 3) Standard-Fallback: roher, escaped Wert
+				 // 3) Standard fallback: raw, escaped value
 				 $stubFunc = function($value) {
 					 return htmlentities((string) $value);
 				 };
 			 }
 	 
-			 // 4) Wrap­per, der beim Aufruf auch die Config mitgibt
+			 // 4) Wrapper that also passes the config when called
 			 $templateClosures[$slug] = function($value) use ($stubFunc, $config) {
 				 return $stubFunc($value, $config);
 			 };
