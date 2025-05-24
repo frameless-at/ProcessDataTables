@@ -6,7 +6,7 @@
  * Handles the creation of output template files for selected fields for each DataTable.
  *
  * @author frameless Media
- * @version 0.3.0
+ * @version 0.4.0
  * @license MIT
  */
 
