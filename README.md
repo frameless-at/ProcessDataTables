@@ -106,7 +106,9 @@ The module provides a global configuration interface where you can set formattin
 * Fieldtype: FieldtypeRepeater
 * Available variable: $value
 */
-echo $value->count();
+return function($value, $config = []) {
+  return $value->count();
+};
 ```
 
 - To customize output, edit the corresponding `.column.php` file for your column.
@@ -120,7 +122,9 @@ echo $value->count();
 * Fieldtype: FieldtypeRepeater
 * Available variable: $value
 */
-echo $value->each("<span style='background-color:{color}; color:#fff'>&nbsp;&nbsp;&nbsp;&nbsp;</span> ");
+return function($value, $config = []) {
+  return $value->each("<span style='background-color:{color}; color:#fff'>&nbsp;&nbsp;&nbsp;&nbsp;</span> ");
+};
 ```
 Quick and dirty, but it works:
 
