@@ -37,9 +37,7 @@ class TemplateGenerator {
 	 */
 	protected $config = [];
 	
-	/**
-	 * Aktualisierter Konstruktor
-	 */
+
 	 public function __construct($templateDir, $config = []) {
 		$this->templateDir = rtrim($templateDir, '/') . '/';
 		$this->fieldtypeStubDir = __DIR__ . '/fieldtype_templates/';
@@ -72,7 +70,6 @@ class TemplateGenerator {
 	
 		if (file_exists($templateFile)) {
 	
-			// Schreibrechte setzen, bevor die Datei gelöscht wird
 			if (!is_writable($templateFile)) {
 				chmod($templateFile, 0777);
 			}
@@ -94,21 +91,17 @@ class TemplateGenerator {
 	  * @param string $realFieldName  Actual field/property name for type detection
 	  */
 	 public function createTemplateFile(string $label, string $realFieldName) {
-		 // 1) Build safe filename
 		 $slug = preg_replace('/[^a-z0-9]+/i', '_', trim(strtolower($label)));
 		 $slug = trim($slug, '_');
 		 $file = $this->templateDir . $slug . self::TEMPLATE_SUFFIX;
 	 
-		 // 2) Skip if already exists
 		 if (is_file($file)) return;
 	 
-		 // 3) Ensure output directory
 		 if (!is_dir($this->templateDir)) {
 			 mkdir($this->templateDir, 0755, true);
 			 wire('log')->save('ProcessDataTables', "Created template directory: {$this->templateDir}");
 		 }
 	 
-		 // 4) Determine type class
 		 $real = $realFieldName;
 		 if ($real === 'meta') {
 			 $typeClass = 'WireData';
@@ -121,7 +114,6 @@ class TemplateGenerator {
 			 return;
 		 }
 	 
-		 // 5) If a core stub exists, copy & replace placeholders
 		 $stubPath = $this->fieldtypeStubDir . $typeClass . self::TEMPLATE_SUFFIX;
 		 if (is_file($stubPath)) {
 			 $raw = file_get_contents($stubPath);
@@ -150,25 +142,21 @@ class TemplateGenerator {
 	 * @return string
 	 */
 	 public function renderTemplateFile(string $label, $value) {
-		 // 1) aus Label den Slug bilden (wie in createTemplateFile)
 		 $slug = preg_replace('/[^a-z0-9]+/i','_', strtolower($label));
 		 $slug = trim($slug, '_');
 		 $file = $this->templateDir . $slug . self::TEMPLATE_SUFFIX;
 	 
-		 // 2) falls nicht existent, versuchen zu erzeugen
 		 if (!file_exists($file)) {
 			 wire('log')->save('ProcessDataTables', "Template not found, creating: $file");
 			 // Da createTemplateFile slugify auf Label macht, kann Label direkt übergeben werden:
 			 $this->createTemplateFile($label);
 		 }
 	 
-		 // 3) nach erneutem Check
 		 if (!file_exists($file)) {
 			 wire('log')->save('ProcessDataTables', "Failed to create template: $file");
 			 return htmlentities($value);
 		 }
 	 
-		 // 4) rendern
 		 $config = $this->config;
 		 ob_start();
 		 include $file;
