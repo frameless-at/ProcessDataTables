@@ -15,13 +15,18 @@ class ProcessDataTablesConfig extends ModuleConfig {
 	public static function getModuleInfo() {
 		return [
 			'title' => 'ProcessDataTables Config',
-			'version' => 0.5.2,
+			'version' => '0.5.2',
 			'summary' => 'Global configuration for ProcessDataTables module.',
 			'autoload' => false,
 			'singular' => true,
 		];
 	}
 	
+	/**
+	 * Single‐source defaults for module config.
+	 *
+	 * @return array<string,mixed>
+	 */	
 	public static function getDefaultConfig(): array {
 		return [
 			'checkboxYesLabel'       => 'Yes',
@@ -33,7 +38,7 @@ class ProcessDataTablesConfig extends ModuleConfig {
 			'optionLabelMap'         => '',
 			'pageRefSeparator'       => ', ',
 			'textMaxLength'          => 80,
-			'textareaStripTags'      => false,
+			'textareaStripTags'      => true,
 			'textareaMaxLength'      => 120,
 		];
 	}
