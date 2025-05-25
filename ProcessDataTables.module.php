@@ -44,7 +44,9 @@ class ProcessDataTables extends Process {
 		}
 		$config = wire('modules')->getModuleConfigData($this);
 		$standardProps = array_keys($this->getStandardPropertyLabels());
-		$this->templateGenerator = new TemplateGenerator(self::$outputPath, $config, $standardProps);	}
+		$this->templateGenerator = new TemplateGenerator(self::$outputPath, $config, $standardProps);	
+			
+	}
 
 	public function init() {
 		parent::init();
