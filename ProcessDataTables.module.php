@@ -9,30 +9,20 @@ require_once __DIR__ . '/TemplateGenerator.php';
  * in a table within the admin area.
  *
  * @author frameless Media
- * @version 0.4.0
+ * @version 0.5.0
  * @license MIT
  */
  
 class ProcessDataTables extends Process {
 	
-	
-	/** @var string Where generated templates live */
 	protected static $outputPath;
-	
-	/** @var TemplateGenerator */
 	protected $templateGenerator;
-	
-	/** Liste der Core-Page-Properties, die als Feldnamen erlaubt sind */
-	protected static $pageProperties = [
-	  'id','name','created','modified','parent','url'
-	];
-	
 	
 	/** Module info tells PW to auto-create /setup/data-tables/ */
 	public static function getModuleInfo() {
 		return [
 			'title'      => 'ProcessDataTables',
-			'version'    => '0.4.0',
+			'version'    => '0.5.0',
 			'summary'    => 'Displays customizable backend tables for any ProcessWire template with flexible column selection, per-field output templates, and global formatting options.',
 			'author'     => 'frameless Media',
 			'autoload'   => true,
@@ -53,7 +43,8 @@ class ProcessDataTables extends Process {
 			self::$outputPath = __DIR__ . '/column_templates/';
 		}
 		$config = wire('modules')->getModuleConfigData($this);
-		$this->templateGenerator = new TemplateGenerator(self::$outputPath, $config);	}
+		$standardProps = array_keys($this->getStandardPropertyLabels());
+		$this->templateGenerator = new TemplateGenerator(self::$outputPath, $config, $standardProps);	}
 
 	public function init() {
 		parent::init();
@@ -77,6 +68,7 @@ class ProcessDataTables extends Process {
 	 *
 	 * @return string HTML markup for the dropdown selector, table, and edit link.
 	 */
+	 
 	public function execute() {
 		// 1) Find the “DataTables” parent page
 		$parent = $this->pages->get("name=data-tables, include=all");
@@ -150,7 +142,7 @@ class ProcessDataTables extends Process {
 		$table->headerRow($header);
 		
 		// Data-Rows
-		$templateClosures = $this->loadColumnTemplates($columns);
+		$templateClosures = $this->loadColumnTemplates($columns, $activeInst->name);
 		
 		foreach($pagesToShow as $page) {
 			$row = [];
@@ -174,16 +166,21 @@ class ProcessDataTables extends Process {
 	 * @param HookEvent $event
 	 */
 	public function setTemplateForNewChild(HookEvent $event) {
+		/** @var Page $page */
 		$page = $event->arguments(0);
+		// only care about brand-new pages under /setup/data-tables/
 		if(!$page->isNew()) return;
 		if(!$page->parent || $page->parent->name !== 'data-tables') return;
+		// force the correct template
 		$page->template = wire('templates')->get('datatable');
+		// done – ProcessWire will now save it with the right template
 	}
 
 	public function validateDataTemplate(HookEvent $event) {
 		$page = $event->arguments(0);
 		if($page->template->name !== 'datatable') return;
 	
+		// SKIP on the initial "new page" save
 		if($page->isNew() || (string) $this->input->get->new === '1') {
 			return;
 		}
@@ -194,95 +191,111 @@ class ProcessDataTables extends Process {
 		}
 	}
 	
-	/**
-	 * Fires after Pages->save()
-	 * Creates/overwrites *.table-output.php files for each field.
+/**
+	 * Fires after Pages->save() on a datatable page; regenerates all column stubs.
+	 *
+	 * @param HookEvent $event
 	 */
-	 public function updateColumnTemplates(HookEvent $event) {
-	   $page = $event->arguments(0);
-	   if(!($page instanceof Page) || $page->template->name !== 'datatable') return;
-	 
-	   $columns = $this->parseColumns($page->columns);
-	   foreach($columns as $col) {
-		 // slug als Basis, realName für die Typ-Erkennung
-		 $this->templateGenerator->createTemplateFile(
-		   $col['slug'],
-		   $col['realName']
-		 );
-	   }
-	 }
+	public function updateColumnTemplates(HookEvent $event) {
+		$page = $event->arguments(0);
+		if (!($page instanceof Page) || $page->template->name !== 'datatable') return;
+	
+		$columns = $this->parseColumns($page->columns);
+		foreach ($columns as $col) {
+			// use the DataTable page's name to namespace stubs
+			$table = $page->name;
+			$this->templateGenerator->createTemplateFile(
+				$table,
+				$col['slug'],
+				$col['realName']
+			);
+		}
+	}
 
 	/**
 	 * Runs when the module is installed.
 	 */
 	public function install() {
-		// 1) Core PW install (creates /setup/data-tables/)
-		parent::install();
-	
-		// 2) Ensure our output directory exists
-		if(!is_dir(self::$outputPath)) {
-			mkdir(self::$outputPath, 0755, true);
-		}
-		$this->templateGenerator->ensureTemplateDir();
-	
-		// 3) Create or load the "datatable" Fieldgroup
-		$fg = wire('fieldgroups')->get("name=datatable");
-		if(!$fg) {
-			$fg = new Fieldgroup();
-			$fg->name = 'datatable';
-			wire('fieldgroups')->save($fg);
-		}
-	
-		// 4) Define and create/update all four config fields
-		$fieldsApi = wire('fields');
-		$defs = [
-			['data_template', 'FieldtypeText',  true,  'Data Template', 'Enter the template name, e.g. “product”'],
-			['data_selector', 'FieldtypeText',  false,   'Data Selector', 'Optional selector, e.g. include=hidden'],
-			['columns',  true, 'FieldtypeTextarea', 'Columns',
-				"One per line, in the exact order you want your table columns to appear.\n"
-			  . "Syntax:\n"
-			  . "  FIELDNAME           — pulls that field/property and uses its built-in label\n"
-			  . "  LABEL=FIELDNAME     — pulls FIELDNAME but shows header as LABEL"
-			],
-		];
-		$fields = [];
-
-		$titleField = wire('fields')->get('title');
-		if($titleField && !$fg->hasField($titleField)) {
-			$fg->add($titleField);
-			wire('fieldgroups')->save($fg);
-		}
-		foreach($defs as list($name, $typeClass, $required, $label, $desc)) {
-			// get existing or new
-			$f = $fieldsApi->get("name={$name}") ?: new Field();
-			$f->name        = $name;
-			$f->required 	= $required;
-			$f->label       = $label;
-			$f->description = $desc;
-			$f->type        = wire('modules')->get($typeClass);
-			$fieldsApi->save($f);
-			$fields[] = $f;
-		}
-	
-		// 5) Attach all four fields to the Fieldgroup
-		foreach($fields as $f) {
-			if(!$fg->hasField($f)) {
-				$fg->add($f);
-			}
-		}
-		wire('fieldgroups')->save($fg);
-	
-		// 6) Create or update the "datatable" template, assign it our Fieldgroup
-		$templatesApi = wire('templates');
-		$tpl = $templatesApi->get("name=datatable");
-		if(!$tpl) {
-			$tpl = new Template();
-			$tpl->name = 'datatable';
-		}
-		// always (re)assign the fieldgroup so new fields show up
-		$tpl->fieldgroup = $fg;
-		$templatesApi->save($tpl);
-	}
+		 // 1) Core PW install (creates /setup/data-tables/)
+		 parent::install();
+	 
+	 	 // 2) Ensure our output directory exists and is writable
+		 //    (column_templates within the module directory)
+		 $dir = self::$outputPath;
+		 if (!is_dir($dir)) {
+			 // try to create the directory
+			 if (!mkdir($dir, 0755, true)) {
+				 throw new WireException("ProcessDataTables: failed to create directory {$dir}. Please check permissions.");
+			 }
+			 wire('log')->save('ProcessDataTables', "Created template directory: {$dir}");
+		 }
+		 // check writability
+		 if (!is_writable($dir)) {
+			 // try to correct permissions
+			 if (!chmod($dir, 0755)) {
+				 throw new WireException("ProcessDataTables: directory {$dir} is not writable. Please adjust permissions.");
+			 }
+			 wire('log')->save('ProcessDataTables', "Adjusted permissions on template directory: {$dir}");
+		 }
+	 
+		 // 3) Create or load the "datatable" Fieldgroup
+		 $fg = wire('fieldgroups')->get("name=datatable");
+		 if(!$fg) {
+			 $fg = new Fieldgroup();
+			 $fg->name = 'datatable';
+			 wire('fieldgroups')->save($fg);
+		 }
+	 
+		 // 4) Define and create/update all four config fields
+		 $fieldsApi = wire('fields');
+		 $defs = [
+			 ['data_template', 'FieldtypeText',  true,  'Data Template', 'Enter the template name, e.g. “product”'],
+			 ['data_selector', 'FieldtypeText',  false,   'Data Selector', 'Optional selector, e.g. include=hidden'],
+			 ['columns',  true, 'FieldtypeTextarea', 'Columns',
+				 "One per line, in the exact order you want your table columns to appear.\n"
+			   . "Syntax:\n"
+			   . "  FIELDNAME           — pulls that field/property and uses its built-in label\n"
+			   . "  LABEL=FIELDNAME     — pulls FIELDNAME but shows header as LABEL"
+			 ],
+		 ];
+		 $fields = [];
+	 
+		 $titleField = wire('fields')->get('title');
+		 if($titleField && !$fg->hasField($titleField)) {
+			 $fg->add($titleField);
+			 wire('fieldgroups')->save($fg);
+		 }
+		 foreach($defs as list($name, $typeClass, $required, $label, $desc)) {
+			 // get existing or new
+			 $f = $fieldsApi->get("name={$name}") ?: new Field();
+			 $f->name        = $name;
+			 $f->required 	= $required;
+			 $f->label       = $label;
+			 $f->description = $desc;
+			 $f->type        = wire('modules')->get($typeClass);
+			 $fieldsApi->save($f);
+			 $fields[] = $f;
+		 }
+	 
+		 // 5) Attach all four fields to the Fieldgroup
+		 foreach($fields as $f) {
+			 if(!$fg->hasField($f)) {
+				 $fg->add($f);
+			 }
+		 }
+		 wire('fieldgroups')->save($fg);
+	 
+		 // 6) Create or update the "datatable" template, assign it our Fieldgroup
+		 $templatesApi = wire('templates');
+		 $tpl = $templatesApi->get("name=datatable");
+		 if(!$tpl) {
+			 $tpl = new Template();
+			 $tpl->name = 'datatable';
+		 }
+		 // always (re)assign the fieldgroup so new fields show up
+		 $tpl->fieldgroup = $fg;
+		 $templatesApi->save($tpl);
+	 }
 	 	 
 	/** Clean up on uninstall */
 	public function uninstall() {
@@ -329,11 +342,11 @@ class ProcessDataTables extends Process {
 			'modified' => 'Modified Date',
 			'parent'   => 'Parent',
 			'url'      => 'URL',
+			'status'   => 'Page Status',
 		];
 	}
 
-
-/**
+	/**
 	  * Parse the unified "columns" textarea into an ordered list of column definitions.
 	  *
 	  * Lines are either:
@@ -346,7 +359,7 @@ class ProcessDataTables extends Process {
 	  * @return array
 	  */
 	 protected function parseColumns(string $raw): array {
-		 $props = self::$pageProperties; // ['id','name','created','modified','parent','url']
+	 	 $props = array_keys($this->getStandardPropertyLabels());
 		 $out   = [];
 	 
 		 foreach (preg_split('/\r\n|\r|\n/', trim($raw)) as $line) {
@@ -384,17 +397,62 @@ class ProcessDataTables extends Process {
 		 }
 	 
 		 return $out;
-	 }	 
-	 
-	/**
-	 * Loads all column templates as callables, once per column.
-	 * Passes both the cell value and the module configuration to each callable.
-	 *
-	 * @param array $columns Output from parseColumns()
-	 * @return array [slug => function($value, $config): string]
-	 */
-	 protected function loadColumnTemplates(array $columns): array {
-		 // 1) Modul-Konfiguration einlesen
+	 }	
+	  
+	  
+	  /**
+	   * Loads all column templates as callables, in table-specific subfolder.
+	   *
+	   * @param array  $columns Output from parseColumns()
+	   * @param string $table   DataTable page name
+	   * @return array<string, callable>  [slug => function($value, $config): string]
+	   */
+	  protected function loadColumnTemplates(array $columns, string $table): array {
+		  // 1) read module config
+		  $config = wire('modules')->getModuleConfigData($this);
+	  
+		  $templateClosures = [];
+		  foreach ($columns as $col) {
+			  $slug         = $col['slug'];
+			  $templateFile = $this->templateGenerator->getTemplateFilePath($table, $slug);
+	  
+			  // auto-upgrade legacy stub with backup (if needed)
+			  if (is_file($templateFile)) {
+				  $raw = file_get_contents($templateFile);
+				  if (!preg_match('/return\s+function\s*\(/', $raw)) {
+					  $backup = dirname($templateFile) . '/_' . basename($templateFile);
+					  rename($templateFile, $backup);
+					  wire('log')->save('ProcessDataTables', "Backed up legacy stub to: {$backup}");
+					  $this->templateGenerator->createTemplateFile($table, $slug, $col['realName']);
+				  }
+			  }
+	  
+			  // load stub or fallback
+			  if (is_file($templateFile)) {
+				  $stubFunc = include $templateFile;
+				  if (!is_callable($stubFunc)) {
+					  $stubFunc = function($value) use ($templateFile) {
+						  ob_start();
+						  include $templateFile;
+						  return ob_get_clean();
+					  };
+				  }
+			  } else {
+				  $stubFunc = function($value) {
+					  return htmlentities((string)$value);
+				  };
+			  }
+	  
+			  // wrap so stubFunc receives config too
+			  $templateClosures[$slug] = function($value) use ($stubFunc, $config) {
+				  return $stubFunc($value, $config);
+			  };
+		  }
+	  
+		  return $templateClosures;
+	  }
+	/* protected function loadColumnTemplates(array $columns): array {
+		 // 1) Read module configuration
 		 $config = wire('modules')->getModuleConfigData($this);
 	 
 		 $templateClosures = [];
@@ -403,12 +461,25 @@ class ProcessDataTables extends Process {
 			 $slug         = $col['slug'];
 			 $templateFile = $this->templateGenerator->getTemplateFilePath($slug);
 	 
+			 // 2) Automatic upgrade with backup: if stub exists but does not return a Closure
 			 if (is_file($templateFile)) {
-				// 2) Include once: stub file must return a Closure
-				 $stubFunc = include $templateFile;
+				 $raw = file_get_contents($templateFile);
+				 if (!preg_match('/return\s+function\s*\(/', $raw)) {
+					 // backup legacy stub by prefixing filename with underscore
+					 $backupFile = dirname($templateFile) . '/_' . basename($templateFile);
+					 rename($templateFile, $backupFile);
+					 wire('log')->save('ProcessDataTables', "Backed up legacy stub to: {$backupFile}");
+					 // regenerate stub in closure format
+					 $this->templateGenerator->createTemplateFile($col['label'], $col['realName']);
+				 }
+			 }
 	 
-				 // Fallback to the old mode if no callable is returned
+			 // 3) Load the stub or set a fallback
+			 if (is_file($templateFile)) {
+				 // including returns the Closure
+				 $stubFunc = include $templateFile;
 				 if (!is_callable($stubFunc)) {
+					 // fallback if it did not return a callable
 					 $stubFunc = function($value) use ($templateFile) {
 						 ob_start();
 						 include $templateFile;
@@ -416,18 +487,19 @@ class ProcessDataTables extends Process {
 					 };
 				 }
 			 } else {
-				 // 3) Standard fallback: raw, escaped value
+				 // generic fallback: raw, escaped value
 				 $stubFunc = function($value) {
 					 return htmlentities((string) $value);
 				 };
 			 }
 	 
-			 // 4) Wrapper that also passes the config when called
+			 // 4) Wrap the stub so that it receives both value and config parameters
 			 $templateClosures[$slug] = function($value) use ($stubFunc, $config) {
 				 return $stubFunc($value, $config);
 			 };
 		 }
 	 
 		 return $templateClosures;
-	 }
+	 } */
+
 }

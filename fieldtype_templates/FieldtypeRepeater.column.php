@@ -6,5 +6,5 @@
  * Available variable: $value
  */
 return function($value, $config = []) {
-	return $value->count();
-};
+     return $value->count();
+ };

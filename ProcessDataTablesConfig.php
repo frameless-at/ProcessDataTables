@@ -6,7 +6,7 @@
  * Simple config module for ProcessDataTables global settings.
  *
  * @author frameless Media
- * @version 0.4.0
+ * @version 0.5.0
  * @license MIT
  */
  

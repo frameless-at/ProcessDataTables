@@ -6,7 +6,7 @@
  * Handles the creation of output template files for selected fields for each DataTable.
  *
  * @author frameless Media
- * @version 0.4.0
+ * @version 0.5.0
  * @license MIT
  */
 
@@ -16,39 +16,37 @@ class TemplateGenerator {
  	* @var string 
  	*/
 	const TEMPLATE_SUFFIX = '.column.php';
-
-	/**
-	 * Directory path for output templates
-	 *
-	 * @var string
-	 */
 	protected $templateDir;
-	
-	/**
-	 * Directory path for default output templates
-	 *
-	 * @var string
-	 */
 	protected $fieldtypeStubDir;
-	
-	/**
-	 * Global Configuration from module
-	 * @var array
-	 */
+	protected $standardProps = [];	
 	protected $config = [];
 	
 
-	 public function __construct($templateDir, $config = []) {
-		$this->templateDir = rtrim($templateDir, '/') . '/';
+	public function __construct(string $templateDir, array $config = [], array $standardProps = []) {
+		$this->templateDir     = rtrim($templateDir, '/') . '/';
 		$this->fieldtypeStubDir = __DIR__ . '/fieldtype_templates/';
 		$this->ensureTemplateDir();
-		$this->config = $config;
+		$this->config          = $config;
+		$this->standardProps   = $standardProps;
 	}
 	
-	public function getTemplateFilePath($slug) {
-		$slug = preg_replace('/[^a-z0-9]+/i','_', strtolower($slug));
-		$slug = trim($slug, '_');
-		return $this->templateDir . $slug . self::TEMPLATE_SUFFIX;
+/**
+	 * Build full path for a column stub, namespaced by DataTable page name.
+	 *
+	 * @param string $table  Name (or slug) of the DataTable page
+	 * @param string $slug   Column slug
+	 * @return string        Full path to .column.php stub
+	 */
+	public function getTemplateFilePath(string $table, string $slug): string {
+		// normalize slug
+		$slug     = preg_replace('/[^a-z0-9]+/i','_', strtolower($slug));
+		$slug     = trim($slug, '_');
+		// normalize table name
+		$tableDir = preg_replace('/[^a-z0-9]+/i','_', strtolower($table));
+		$tableDir = trim($tableDir, '_');
+		// return path: <base>/<table>/<slug>.column.php
+		$base = rtrim($this->templateDir, '/');
+		return "{$base}/{$tableDir}/{$slug}" . self::TEMPLATE_SUFFIX;
 	}
 	
 	/**
@@ -75,22 +73,74 @@ class TemplateGenerator {
 			}
 	
 			if (unlink($templateFile)) {
-				wire('log')->save('ProcessDataTables', "Template gelöscht: $templateFile");
+				wire('log')->save('ProcessDataTables', "Template deleted: $templateFile");
 			} else {
-				wire('log')->save('ProcessDataTables', "Fehler beim Löschen des Templates: $templateFile");
+				wire('log')->save('ProcessDataTables', "Error deleting template: $templateFile");
 			}
 		} else {
-			wire('log')->save('ProcessDataTables', "Template existiert nicht und konnte nicht gelöscht werden: $templateFile");
+			wire('log')->save('ProcessDataTables', "Template does not exist and could not be deleted: $templateFile");
 		}
 	}
 	 
-	 /**
-	  * Create or overwrite a single-column stub as a Closure file.
-	  *
-	  * @param string $label          Human-readable column label (filename basis)
-	  * @param string $realFieldName  Actual field/property name for type detection
-	  */
-	 public function createTemplateFile(string $label, string $realFieldName) {
+	/**
+	 * Create or overwrite a single-column stub in table-specific subfolder.
+	 *
+	 * @param string $table         DataTable page name
+	 * @param string $label         Human-readable column label
+	 * @param string $realFieldName Actual field/property name
+	 */
+	public function createTemplateFile(string $table, string $label, string $realFieldName) {
+		// build slug & path
+		$slug = preg_replace('/[^a-z0-9]+/i', '_', trim(strtolower($label)));
+		$slug = trim($slug, '_');
+		$file = $this->getTemplateFilePath($table, $slug);
+	
+		// bail if already exists
+		if (is_file($file)) return;
+	
+		// ensure subdirectory exists
+		$dir = dirname($file);
+		if (!is_dir($dir)) {
+			mkdir($dir, 0755, true);
+			wire('log')->save('ProcessDataTables', "Created template directory: {$dir}");
+		}
+	
+		// detect typeClass (same logic as before)
+		$real = $realFieldName;
+		if ($real === 'meta') {
+			$typeClass = 'WireData';
+		} elseif (in_array($real, $this->standardProps ?? ['id','name','created','modified','parent','url','status'], true)) {
+			$typeClass = 'PageProperty';
+		} elseif ($field = wire('fields')->get($real)) {
+			$typeClass = $field->type->className;
+		} else {
+			return; // invalid
+		}
+	
+		// copy core stub if available
+		$stubPath = $this->fieldtypeStubDir . $typeClass . self::TEMPLATE_SUFFIX;
+		if (is_file($stubPath)) {
+			$raw = file_get_contents($stubPath);
+			$raw = strtr($raw, [
+				'{{FIELDNAME}}' => $realFieldName,
+				'{{LABEL}}'     => $label,
+			]);
+			file_put_contents($file, $raw);
+			chmod($file, 0664);
+			wire('log')->save('ProcessDataTables', "Copied fieldtype stub: {$stubPath} -> {$file}");
+			return;
+		}
+	
+		// fallback: generate closure stub
+		$content = $this->getTemplateContent($typeClass, $realFieldName, $label);
+		file_put_contents($file, $content);
+		chmod($file, 0664);
+		$message = ($typeClass === 'PageProperty')
+			? "Wrote PageProperty stub: {$file}"
+			: "Wrote fallback template file: {$file}";
+		wire('log')->save('ProcessDataTables', $message);
+	}  
+	/* public function createTemplateFile(string $label, string $realFieldName) {
 		 $slug = preg_replace('/[^a-z0-9]+/i', '_', trim(strtolower($label)));
 		 $slug = trim($slug, '_');
 		 $file = $this->templateDir . $slug . self::TEMPLATE_SUFFIX;
@@ -105,7 +155,7 @@ class TemplateGenerator {
 		 $real = $realFieldName;
 		 if ($real === 'meta') {
 			 $typeClass = 'WireData';
-		 } elseif (in_array($real, ['id','name','created','modified','parent','url'], true)) {
+		 } elseif (in_array($real, $this->standardProps, true)) {
 			 $typeClass = 'PageProperty';
 		 } elseif ($field = wire('fields')->get($real)) {
 			 $typeClass = $field->type->className;
@@ -132,8 +182,9 @@ class TemplateGenerator {
 		 $content = $this->getTemplateContent($typeClass, $realFieldName, $label);
 		 file_put_contents($file, $content);
 		 chmod($file, 0664);
-		 wire('log')->save('ProcessDataTables', "Wrote fallback template file: {$file}");
-	 }			
+		 $message = ($typeClass === 'PageProperty') ? "Wrote PageProperty stub: {$file}" : "Wrote fallback template file: {$file}";
+		 wire('log')->save('ProcessDataTables', $message);
+	 }			*/
 	/**
 	 * Render the template file for a specific field
 	 *
@@ -214,6 +265,15 @@ class TemplateGenerator {
 			  'modified' => "	return date('Y-m-d H:i', \$value);",
 			  'id'       => "	return (string)(int)\$value;",
 			  'name'     => "	return htmlspecialchars((string)\$value);",
+			  'status' 	 => "    \$labels = [];\n"
+						  . "    if (\$value & Page::statusOn)          \$labels[] = 'published';\n"
+						  . "    if (\$value & Page::statusUnpublished)  \$labels[] = 'unpublished';\n"
+						  . "    if (\$value & Page::statusHidden)       \$labels[] = 'hidden';\n"
+						  . "    if (\$value & Page::statusLocked)       \$labels[] = 'locked';\n"
+						  . "    if (\$value & Page::statusSystem)       \$labels[] = 'system';\n"
+						  . "    if (\$value & Page::statusSystemID)     \$labels[] = 'systemID';\n"
+						  . "    if (empty(\$labels)) return '';\n"
+						  . "    return htmlspecialchars(implode(', ', \$labels));",
 			  'parent'   => "	if(\$value instanceof Page) {
 		  		return '<a href=\"'.\$value->url.'\">'.htmlspecialchars(\$value->title).'</a>';
 	  			} else {
