@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.5.0] – 2025-05-25
+
+### Added
+- **Write-permission checks** in `install()`:  
+  - Ensure `column_templates/` directory exists with correct permissions.  
+  - Attempt to fix unwritable directory or throw a clear `WireException`.
+
+### Changed
+- **Template file structure**  
+  - Stubs are now namespaced into subfolders per DataTable (`column_templates/<table>/<slug>.column.php`) instead of a flat directory.  
+  - `TemplateGenerator::getTemplateFilePath()` and `createTemplateFile()` updated to build and create these subdirectories automatically.
+
+- **Legacy-stub upgrade**  
+  - `loadColumnTemplates()` now checks each stub for a `return function(...)` signature.  
+  - If missing, it **archives** the old stub (prefixing its filename with `_`) before regenerating a new closure-based stub.
+
+- **Page-property handling**  
+  - Unified list of core properties driven by `getStandardPropertyLabels()` (including `status`).  
+  - All Page-property stubs now use `return …;` inside closures and map bitmask flags (`status`) to human-readable labels.
+
+### Fixed
+- Avoid nested PHP tags or duplicate wrappers when copying core‐stub templates.  
+- Ensure `$config` defaults are merged so flags like `textareaStripTags` never trigger “undefined key” warnings.
+
+---
+
 ## [0.4.0] - 2025-05-24
 
 ### Changed
