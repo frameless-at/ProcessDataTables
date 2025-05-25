@@ -9,7 +9,7 @@ require_once __DIR__ . '/TemplateGenerator.php';
  * in a table within the admin area.
  *
  * @author frameless Media
- * @version 0.5.1
+ * @version 0.5.2
  * @license MIT
  */
  
@@ -22,7 +22,7 @@ class ProcessDataTables extends Process {
 	public static function getModuleInfo() {
 		return [
 			'title'      => 'ProcessDataTables',
-			'version'    => '0.5.1',
+			'version'    => '0.5.2',
 			'summary'    => 'Displays customizable backend tables for any ProcessWire template with flexible column selection, per-field output templates, and global formatting options.',
 			'author'     => 'frameless Media',
 			'autoload'   => true,
@@ -279,7 +279,7 @@ class ProcessDataTables extends Process {
 			 $fields[] = $f;
 		 }
 	 
-	 	$defaults = ProcessDataTablesConfig::getDefaults();
+	 	$defaults = ProcessDataTablesConfig::getDefaultConfig();
 	 	wire('modules')->saveModuleConfig($this, $defaults);
 	 
 		 // 5) Attach all four fields to the Fieldgroup

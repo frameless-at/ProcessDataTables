@@ -6,7 +6,7 @@
  * Simple config module for ProcessDataTables global settings.
  *
  * @author frameless Media
- * @version 0.5.1
+ * @version 0.5.2
  * @license MIT
  */
  
@@ -15,14 +15,14 @@ class ProcessDataTablesConfig extends ModuleConfig {
 	public static function getModuleInfo() {
 		return [
 			'title' => 'ProcessDataTables Config',
-			'version' => 1,
+			'version' => 0.5.2,
 			'summary' => 'Global configuration for ProcessDataTables module.',
 			'autoload' => false,
 			'singular' => true,
 		];
 	}
 	
-	public static function getDefaults(): array {
+	public static function getDefaultConfig(): array {
 		return [
 			'checkboxYesLabel'       => 'Yes',
 			'checkboxNoLabel'        => 'No',
@@ -39,7 +39,7 @@ class ProcessDataTablesConfig extends ModuleConfig {
 	}
 	
 	public function getInputfields() {
-		$defaults = self::getDefaults();
+		$defaults = self::getDefaultConfig();
 		$inputfields = new InputfieldWrapper();
 	
 		// Checkbox labels
