@@ -22,7 +22,24 @@ class ProcessDataTablesConfig extends ModuleConfig {
 		];
 	}
 	
-public function getInputfields() {
+	public static function getDefaults(): array {
+		return [
+			'checkboxYesLabel'       => 'Yes',
+			'checkboxNoLabel'        => 'No',
+			'dateFormat'             => 'd.m.Y H:i',
+			'currencyFormat'         => 'de_AT:EUR',
+			'numberDecimals'         => 2,
+			'imageThumbnailMaxWidth' => 100,
+			'optionLabelMap'         => '',
+			'pageRefSeparator'       => ', ',
+			'textMaxLength'          => 80,
+			'textareaStripTags'      => false,
+			'textareaMaxLength'      => 120,
+		];
+	}
+	
+	public function getInputfields() {
+		$defaults = self::getDefaults();
 		$inputfields = new InputfieldWrapper();
 	
 		// Checkbox labels
@@ -30,7 +47,7 @@ public function getInputfields() {
 		$f->name = 'checkboxYesLabel';
 		$f->label = __('Label for "Yes" checkbox output');
 		$f->description = __('Displayed for "Yes" values in checkbox fields.');
-		$f->value = $this->checkboxYesLabel ?? 'Yes';
+		$f->value = $this->checkboxYesLabel ?? $defaults['checkboxYesLabel'];
 		$f->columnWidth = 25;
 		$inputfields->add($f);
 	
@@ -39,7 +56,7 @@ public function getInputfields() {
 		$f->label = __('Label for "No" checkbox output');
 		$f->description = __('Displayed for "No" values in checkbox fields.');
 		$f->columnWidth = 25;
-		$f->value = $this->checkboxNoLabel ?? 'No';
+		$f->value = $this->checkboxNoLabel ?? $defaults['checkboxNoLabel'];
 		$inputfields->add($f);
 	
 		// Date format
@@ -48,7 +65,7 @@ public function getInputfields() {
 		$f->label = __('Date Format');
 		$f->description = __('PHP date format string, e.g. "d.m.Y H:i".');
 		$f->columnWidth = 25;
-		$f->value = $this->dateFormat ?? 'd.m.Y H:i';
+		$f->value = $this->dateFormat ?? $defaults['dateFormat'];
 		$inputfields->add($f);
 	
 		// Currency format
@@ -57,7 +74,7 @@ public function getInputfields() {
 		$f->label = __('Currency Format');
 		$f->description = __('e.g. de_AT:EUR or en_US:USD');
 		$f->columnWidth = 25;
-		$f->value = $this->currencyFormat ?? 'de_AT:EUR';
+		$f->value = $this->currencyFormat ?? $defaults['currencyFormat'];
 		$inputfields->add($f);
 	
 		// Decimal places for numbers
@@ -66,7 +83,7 @@ public function getInputfields() {
 		$f->label = __('Number of decimals for numbers');
 		$f->description = __('How many decimal places should numbers display?');
 		$f->columnWidth = 25;
-		$f->value = $this->numberDecimals ?? 2;
+		$f->value = $this->numberDecimals ?? $defaults['numberDecimals'];
 		$inputfields->add($f);
 	
 		// Maximum image thumbnail width
@@ -75,7 +92,7 @@ public function getInputfields() {
 		$f->label = __('Maximum image thumbnail width (px)');
 		$f->description = __('Default: 100px');
 		$f->columnWidth = 25;
-		$f->value = $this->imageThumbnailMaxWidth ?? 100;
+		$f->value = $this->imageThumbnailMaxWidth ?? $defaults['imageThumbnailMaxWidth'];
 		$inputfields->add($f);
 	
 		// Option label map
@@ -84,7 +101,7 @@ public function getInputfields() {
 		$f->label = __('Options Label Mapping');
 		$f->description = __('Optional: Map option values to labels (one per line: value=Label)');
 		$f->columnWidth = 50;
-		$f->value = $this->optionLabelMap ?? '';
+		$f->value = $this->optionLabelMap ?? $defaults['optionLabelMap'];
 		$inputfields->add($f);
 	
 		// Page reference separator
@@ -93,7 +110,7 @@ public function getInputfields() {
 		$f->label = __('Page reference separator');
 		$f->description = __('Separator for multiple referenced pages (e.g. comma, semicolon, etc.)');
 		$f->columnWidth = 25;
-		$f->value = $this->pageRefSeparator ?? ', ';
+		$f->value = $this->pageRefSeparator ?? $defaults['pageRefSeparator'];
 		$inputfields->add($f);
 	
 		// Text field max length
@@ -102,7 +119,7 @@ public function getInputfields() {
 		$f->label = __('Max length for text output');
 		$f->description = __('Maximum character length for simple text fields');
 		$f->columnWidth = 25;
-		$f->value = $this->textMaxLength ?? 80;
+		$f->value = (int) ($this->numberDecimals ?? $defaults['numberDecimals']);
 		$inputfields->add($f);
 	
 		// Textarea: strip HTML tags
@@ -111,7 +128,7 @@ public function getInputfields() {
 		$f->label = __('Strip HTML tags from textarea?');
 		$f->description = __('If enabled, HTML tags will be removed from textarea output.');
 		$f->columnWidth = 25;
-		$f->checked = !empty($this->textareaStripTags);
+		$f->checked = (bool) ($this->textareaStripTags ?? $defaults['textareaStripTags']);
 		$inputfields->add($f);
 	
 		// Textarea max length
@@ -120,7 +137,7 @@ public function getInputfields() {
 		$f->label = __('Max length for textarea output');
 		$f->description = __('Maximum character length for textarea fields');
 		$f->columnWidth = 25;
-		$f->value = $this->textareaMaxLength ?? 120;
+		$f->value = $this->textareaMaxLength ?? $defaults['textareaMaxLength'];
 		$inputfields->add($f);
 	
 		return $inputfields;

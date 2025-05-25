@@ -279,6 +279,9 @@ class ProcessDataTables extends Process {
 			 $fields[] = $f;
 		 }
 	 
+	 	$defaults = ProcessDataTablesConfig::getDefaults();
+	 	wire('modules')->saveModuleConfig($this, $defaults);
+	 
 		 // 5) Attach all four fields to the Fieldgroup
 		 foreach($fields as $f) {
 			 if(!$fg->hasField($f)) {
