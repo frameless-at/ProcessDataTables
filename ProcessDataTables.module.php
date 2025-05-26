@@ -9,7 +9,7 @@ require_once __DIR__ . '/TemplateGenerator.php';
  * in a table within the admin area.
  *
  * @author frameless Media
- * @version 0.5.2
+ * @version 0.6.0
  * @license MIT
  */
  
@@ -22,7 +22,7 @@ class ProcessDataTables extends Process {
 	public static function getModuleInfo() {
 		return [
 			'title'      => 'ProcessDataTables',
-			'version'    => '0.5.2',
+			'version'    => '0.6.0',
 			'summary'    => 'Displays customizable backend tables for any ProcessWire template with flexible column selection, per-field output templates, and global formatting options.',
 			'author'     => 'frameless Media',
 			'autoload'   => true,
@@ -54,7 +54,6 @@ class ProcessDataTables extends Process {
 		wire('pages')->addHookAfter('save', $this, 'updateColumnTemplates');
 		wire('pages')->addHookBefore('saveReady', $this, 'setTemplateForNewChild');
 		wire('pages')->addHookBefore('saveReady', $this, 'validateDataTemplate');
-
 	}
 
 	/**
@@ -72,8 +71,25 @@ class ProcessDataTables extends Process {
 	 */
 	 
 	public function execute() {
+		if($this->input->post->ptables_action === 'import_config') {
+			$this->importConfigAndPages($_FILES['ptables_import_config'] ?? null);
+		}
+		if($this->input->post->ptables_action === 'import_templates') {
+			$this->importTemplates($_FILES['ptables_import_templates'] ?? null);
+		}
+		
+		if($this->input->get->ptables_action === 'export_config') {
+			return $this->exportConfig();
+		}
+		if($this->input->get->ptables_action === 'export_templates') {
+			return $this->exportColumnTemplates();
+		}
+		
+
 		// 1) Find the “DataTables” parent page
 		$parent = $this->pages->get("name=data-tables, include=all");
+		$addUrl = "/cms/page/add/?parent_id={$parent->id}";
+
 		if(!$parent->id) {
 			return $this->warning("DataTables parent page not found.");
 		}
@@ -81,8 +97,7 @@ class ProcessDataTables extends Process {
 		// 2) Fetch all published DataTable instances
 		$instances = $this->pages->find("parent={$parent->id}, status=published, sort=name");
 		if(!$instances->count()) {
-			$addUrl = "/cms/page/add/?parent_id={$parent->id}";
-			return "<p>No DataTables defined yet. <a href='{$addUrl}'>Add one now</a>.</p>";
+			return "<p>No DataTables defined yet. <a href='{$addUrl}'>Add one now</a> or import data</p>".$this->renderImportConfigForm();
 		}
 	
 		// 3) Determine active instance
@@ -91,7 +106,10 @@ class ProcessDataTables extends Process {
 		$activeId   = in_array($dtIdParam, $ids, true) ? $dtIdParam : $ids[0];
 		$activeInst = $this->pages->get($activeId);
 		$activeTitle = htmlentities($activeInst->title);
-	
+		$exportConfigUrl = wire('page')->url . '?ptables_action=export_config';
+		$exportTemplUrl = wire('page')->url . '?ptables_action=export_templates';
+		$editlink = "/cms/page/edit/?id=" . $activeId;
+		
 		// 4) Build the uk-tab + dropdown selector
 		$html  = '<ul uk-tab class="uk-margin-small-bottom">';
 		
@@ -113,13 +131,10 @@ class ProcessDataTables extends Process {
 			$html .= "<a>{$activeTitle}</a>";
 
 		$html .= '<li>';
-		
-		$editlink = "/cms/page/edit/?id=" . $activeId;
-		$html  .=    "<li><a onclick=\"window.location.href='$editlink'\" href>Edit</a><li>";
-		$addUrl = "/cms/page/add/?parent_id={$parent->id}";
+		$html  .= "<li><a onclick=\"window.location.href='$editlink'\" href>Edit</a><li>";
 		$html  .= "<li><a class='uk-text-primary' href onclick=\"window.location.href='{$addUrl}'\">Add New</a></li>";
 		$html .= '</ul>';
-	
+
 		// 5) Parse unified columns config
 		$columns = $this->parseColumns($activeInst->columns);
 	
@@ -158,6 +173,29 @@ class ProcessDataTables extends Process {
 	
 		// 10) Render selector + table
 		$html .= $table->render();
+
+		// 11) Render Import/Export
+		// Configuration Section
+		// ---------------
+		$html .= '<details class="uk-margin-large-top">';  // "open" entfernen, wenn zugeklappt starten soll
+		$html .=   '<summary class="uk-legend">Module &amp; Datatables Configuration</summary>';
+		$html .=   '<div uk-grid class="uk-grid-small uk-child-width-1-2@m">';
+		$html .=     '<div>' . $this->renderImportConfigForm() . '</div>';
+		$html .=     '<div>' . $this->renderExportConfigForm() . '</div>';
+		$html .=   '</div>';
+		$html .= '</details>';
+		
+		// ---------------
+		// Templates Section
+		// ---------------
+		$html .= '<details class="uk-margin-small">';
+		$html .=   '<summary class="uk-legend">Datatables Template Files</summary>';
+		$html .=   '<div uk-grid class="uk-grid-small uk-child-width-1-2@m">';
+		$html .=     '<div>' . $this->renderImportTemplatesForm() . '</div>';
+		$html .=     '<div>' . $this->renderExportTemplatesForm() . '</div>';
+		$html .=   '</div>';
+		$html .= '</details>';		
+		
 		return $html;
 	}
 	
@@ -350,8 +388,315 @@ class ProcessDataTables extends Process {
 			'status'   => 'Page Status',
 		];
 	}
-
+	
+ /**
+	 * Export module config + DataTable definitions as JSON.
+	 */
+	protected function exportConfig() {
+		// permission
+		if(!wire('user')->hasPermission('data-table-view')) {
+			throw new WireException("Access denied");
+		}
+	
+		// module config
+		$config = wire('modules')->getModuleConfigData($this);
+	
+		// all DataTables
+		$tables   = [];
+		$parent   = wire('pages')->get("name=data-tables, include=all");
+		if($parent->id) {
+			$instances = wire('pages')->find("parent={$parent->id}, status=published");
+			foreach($instances as $inst) {
+				$tables[] = [
+					'name'          => $inst->name,
+					'title'         => $inst->title,
+					'data_template' => (string) $inst->data_template,
+					'data_selector' => (string) $inst->data_selector,
+					'columns'       => array_map('trim', preg_split('/\r\n|\r|\n/', trim((string)$inst->columns))),
+				];
+			}
+		}
+	
+		// payload
+		$payload = [
+			'moduleConfig' => $config,
+			'dataTables'   => $tables,
+		];
+	
+		// output
+		$json = json_encode($payload, JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE);
+		header('Content-Type: application/json');
+		header('Content-Disposition: attachment; filename="ptables-export.json"');
+		echo $json;
+		exit;
+	}
+	
 	/**
+	 * Export all column templates as a ZIP archive.
+	 */
+	protected function exportColumnTemplates() {
+		// permission
+		if(!wire('user')->hasPermission('data-table-view')) {
+			throw new WireException("Access denied");
+		}
+	
+		// base dir
+		$baseDir = self::$outputPath;
+		if(!is_dir($baseDir)) {
+			throw new WireException("Templates directory not found: {$baseDir}");
+		}
+	
+		// create temp ZIP
+		$zip     = new ZipArchive();
+		$tmpFile = tempnam(sys_get_temp_dir(), 'ptpls_') . '.zip';
+		if($zip->open($tmpFile, ZipArchive::CREATE) !== true) {
+			throw new WireException("Could not create ZIP archive");
+		}
+	
+		// add files recursively
+		$files = new RecursiveIteratorIterator(
+			new RecursiveDirectoryIterator($baseDir, FilesystemIterator::SKIP_DOTS),
+			RecursiveIteratorIterator::LEAVES_ONLY
+		);
+		foreach($files as $file) {
+			if(!$file->isFile()) continue;
+			$filePath     = $file->getRealPath();
+			$relativePath = ltrim(substr($filePath, strlen($baseDir)), DIRECTORY_SEPARATOR);
+			$zip->addFile($filePath, $relativePath);
+		}
+		$zip->close();
+	
+		// deliver ZIP
+		header('Content-Type: application/zip');
+		header('Content-Disposition: attachment; filename="ptables-templates.zip"');
+		readfile($tmpFile);
+		unlink($tmpFile);
+		exit;
+	}
+  /**
+	 * Handle import of module config plus DataTable-Pages from uploaded JSON.
+	 *
+	 * @param array|null $file  The $_FILES entry for the JSON upload
+	 * @return void
+	 */
+	protected function importConfigAndPages($file) {
+		// 1) Validierung
+		if(!wire('user')->hasPermission('data-table-view')) {
+			throw new WireException("Access denied");
+		}
+		if(!$file || $file['error'] !== UPLOAD_ERR_OK) {
+			return $this->error("No valid JSON file uploaded.");
+		}
+	
+		// 2) JSON einlesen und prüfen
+		$data = json_decode(file_get_contents($file['tmp_name']), true);
+		if(!isset($data['moduleConfig'], $data['dataTables'])) {
+			return $this->error("Invalid export JSON format.");
+		}
+	
+		// 3) Config speichern
+		wire('modules')->saveConfig($this, $data['moduleConfig']);
+	
+		// 4) DataTable-Pages anlegen/aktualisieren
+		$this->importDataTablePages($data['dataTables']);
+	
+		// 5) Feedback
+		$this->message("Configuration and DataTables-Pages imported successfully.");
+	}
+	
+	/**
+	 * Create or update DataTable pages under /setup/data-tables/ based on definitions.
+	 *
+	 * @param array $definitions  Array of ['name','title','data_template','data_selector','columns']
+	 */
+	protected function importDataTablePages(array $definitions) {
+		$parent = wire('pages')->get("name=data-tables, include=all");
+		if(!$parent->id) {
+			// Fallback: create parent if missing
+			$parent = new Page();
+			$parent->template = wire('templates')->get('admin');
+			$parent->parent   = wire('pages')->get('/setup/');
+			$parent->name     = 'data-tables';
+			wire('pages')->save($parent);
+		}
+	
+		foreach($definitions as $def) {
+			// Suche oder neues Page-Objekt
+			$p = wire('pages')->get("parent={$parent->id}, name={$def['name']}");
+			if(!$p->id) {
+				$p = new Page();
+				$p->template = wire('templates')->get('datatable');
+				$p->parent   = $parent;
+				$p->name     = $def['name'];
+			}
+			// Felder setzen
+			$p->title         = $def['title'] ?? $def['name'];
+			$p->of(true);
+			$p->data_template = $def['data_template'] ?? '';
+			$p->data_selector = $def['data_selector'] ?? '';
+			$p->columns       = implode("\n", $def['columns'] ?? []);
+			wire('pages')->save($p);
+		}
+	}
+	
+	/**
+	 * Handle import of column-templates ZIP.
+	 *
+	 * @param array|null $file  The $_FILES entry for the ZIP upload
+	 * @return void
+	 */
+	 protected function importTemplates($file) {
+		 // 1) Berechtigungen prüfen
+		 if(!wire('user')->hasPermission('data-table-view')) {
+			 throw new WireException("Access denied");
+		 }
+		 if(!$file || $file['error'] !== UPLOAD_ERR_OK) {
+			 return $this->error("No valid ZIP file uploaded.");
+		 }
+	 
+		 // 2) ZIP entpacken
+		 $tmpDir = sys_get_temp_dir() . '/ptpls_import_' . uniqid();
+		 mkdir($tmpDir, 0755, true);
+		 $zip = new ZipArchive();
+		 if($zip->open($file['tmp_name']) !== true) {
+			 return $this->error("Failed to open ZIP archive.");
+		 }
+		 $zip->extractTo($tmpDir);
+		 $zip->close();
+	 
+		 // 3) WorkDir ermitteln (strip evtl. Top-Level-Ordner)
+		 $entries = array_diff(scandir($tmpDir), ['.','..']);
+		 if(count($entries) === 1 && is_dir("$tmpDir/{$entries[0]}")) {
+			 $workDir = "$tmpDir/{$entries[0]}";
+		 } else {
+			 $workDir = $tmpDir;
+		 }
+	 
+		 // 4) Dateien kopieren & Berechtigungen setzen
+		 $baseDir = rtrim(self::$outputPath, '/') . '/';
+		 $iterator = new RecursiveIteratorIterator(
+			 new RecursiveDirectoryIterator($workDir, FilesystemIterator::SKIP_DOTS),
+			 RecursiveIteratorIterator::SELF_FIRST
+		 );
+		 foreach($iterator as $item) {
+			 $sourcePath = $item->getRealPath();
+	 
+			 // a) Skip macOS metadata
+			 if (strpos($sourcePath, '__MACOSX') !== false) continue;
+	 
+			 // b) Zielpfad ermitteln
+			 $relative = substr($sourcePath, strlen($workDir) + 1);
+			 $dest     = $baseDir . $relative;
+	 
+			 if ($item->isDir()) {
+				 // Verzeichnis anlegen
+				 if (!is_dir($dest)) {
+					 mkdir($dest, 0755, true);
+					 wire('log')->save('ProcessDataTables', "Created directory: {$dest}");
+				 }
+			 } else {
+				 // Datei sichern, dann kopieren
+				 if (is_file($dest)) {
+					 rename($dest, dirname($dest) . '/_' . basename($dest));
+				 }
+				 copy($sourcePath, $dest);
+	 
+				 // PW FileTools chmod nutzen
+				 wire('files')->chmod($dest, '0770', false);
+				 wire('log')->save('ProcessDataTables', "Imported template file with 0644: {$dest}");
+			 }
+		 }
+	 
+		 // 5) Temporäres Verzeichnis löschen
+		 wire('files')->rmdir($tmpDir, true);
+	 
+		 // 6) Erfolgsmeldung
+		 $this->message("Templates imported successfully.");
+	 
+		 // kein Redirect – wir bleiben im normalen UI-Flow
+	 }
+	 /**
+	  * Renders the Import Config JSON form 
+	  *
+	  * @return string
+	  */
+ protected function renderImportConfigForm() {
+		$html = "
+			<form method='post' enctype='multipart/form-data' class='uk-form-stacked uk-margin-large'>
+  			<div class='uk-grid-small' uk-grid>
+				<div class='uk-width-auto'>
+	  			<label class='uk-form-label' for='ptables_import_config'>Import JSON Data</label>
+	  			<input class='uk-input' type='file' name='ptables_import_config' id='ptables_import_config' accept='.json'>
+				</div>
+				<div class='uk-width-auto'>
+	  			<label class='uk-form-label'>&nbsp;</label>
+	  			<button class='uk-button uk-button-primary' type='submit' name='ptables_action' value='import_config'>
+					Import Config & Tables
+	  			</button>
+				</div>
+  			</div>
+			</form>";
+	  
+		  return $html;
+	  }
+	/**
+	* Renders the Export Config JSON form 
+	*
+	* @return string
+	*/
+	protected function renderExportConfigForm() {
+	  $html = "
+		  <form method='get' class='uk-form-stacked uk-margin-small'>
+				<label class='uk-form-label' for='ptables_action'>Export global settings & configuration of all DataTables (JSON)</label>
+				<button class='uk-button uk-button-primary' type='submit' name='ptables_action' value='export_config'>
+				  Export Config & Tables
+				</button>
+		  </form>";
+	
+		return $html;
+	}	 
+	 /**
+	  * Renders the Import Templates ZIP form 
+	  *
+	  * @return string
+	  */
+	  protected function renderImportTemplatesForm() {
+		$html = "
+	  		<form method='post' enctype='multipart/form-data' class='uk-form-stacked uk-margin-small-bottom'>
+				<div class='uk-grid-small' uk-grid>
+		  		<div class='uk-width-auto'>
+					<label class='uk-form-label' for='ptables_import_templates'>Import column-templates (ZIP)</label>
+					<input class='uk-input' type='file' name='ptables_import_templates' id='ptables_import_templates' accept='.zip'>
+		  		</div>
+		  		<div class='uk-width-auto'>
+					<label class='uk-form-label'>&nbsp;</label>
+					<button class='uk-button uk-button-primary' type='submit' name='ptables_action' value='import_templates'>
+			  		Import Templates
+					</button>
+		  		</div>
+				</div>
+	  		</form>";
+	  
+		  return $html;
+	  }
+	  /**
+	  * Renders the Export Config JSON form 
+	  *
+	  * @return string
+	  */
+	  protected function renderExportTemplatesForm() {
+		$html = "
+			<form method='get' class='uk-form-stacked uk-margin-large'>
+				  <label class='uk-form-label' for='ptables_action'>Export column templates of all DataTables (ZIP)</label>
+				  <button class='uk-button uk-button-primary' type='submit' name='ptables_action' value='export_templates'>
+					Export Templates
+				  </button>
+			</form>";
+	  
+		  return $html;
+	  }	 
+	  
+	 /**
 	  * Parse the unified "columns" textarea into an ordered list of column definitions.
 	  *
 	  * Lines are either:
@@ -456,55 +801,5 @@ class ProcessDataTables extends Process {
 	  
 		  return $templateClosures;
 	  }
-	/* protected function loadColumnTemplates(array $columns): array {
-		 // 1) Read module configuration
-		 $config = wire('modules')->getModuleConfigData($this);
-	 
-		 $templateClosures = [];
-	 
-		 foreach ($columns as $col) {
-			 $slug         = $col['slug'];
-			 $templateFile = $this->templateGenerator->getTemplateFilePath($slug);
-	 
-			 // 2) Automatic upgrade with backup: if stub exists but does not return a Closure
-			 if (is_file($templateFile)) {
-				 $raw = file_get_contents($templateFile);
-				 if (!preg_match('/return\s+function\s*\(/', $raw)) {
-					 // backup legacy stub by prefixing filename with underscore
-					 $backupFile = dirname($templateFile) . '/_' . basename($templateFile);
-					 rename($templateFile, $backupFile);
-					 wire('log')->save('ProcessDataTables', "Backed up legacy stub to: {$backupFile}");
-					 // regenerate stub in closure format
-					 $this->templateGenerator->createTemplateFile($col['label'], $col['realName']);
-				 }
-			 }
-	 
-			 // 3) Load the stub or set a fallback
-			 if (is_file($templateFile)) {
-				 // including returns the Closure
-				 $stubFunc = include $templateFile;
-				 if (!is_callable($stubFunc)) {
-					 // fallback if it did not return a callable
-					 $stubFunc = function($value) use ($templateFile) {
-						 ob_start();
-						 include $templateFile;
-						 return ob_get_clean();
-					 };
-				 }
-			 } else {
-				 // generic fallback: raw, escaped value
-				 $stubFunc = function($value) {
-					 return htmlentities((string) $value);
-				 };
-			 }
-	 
-			 // 4) Wrap the stub so that it receives both value and config parameters
-			 $templateClosures[$slug] = function($value) use ($stubFunc, $config) {
-				 return $stubFunc($value, $config);
-			 };
-		 }
-	 
-		 return $templateClosures;
-	 } */
 
 }

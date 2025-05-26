@@ -6,7 +6,7 @@
  * Handles the creation of output template files for selected fields for each DataTable.
  *
  * @author frameless Media
- * @version 0.5.0
+ * @version 0.6.0
  * @license MIT
  */
 
@@ -88,6 +88,24 @@ class TemplateGenerator {
 	 * @param string $table         DataTable page name
 	 * @param string $label         Human-readable column label
 	 * @param string $realFieldName Actual field/property name
+	 *
+	 * examlpe stub with closure:
+	 *
+	 * Output template for field: {{FIELDNAME}}
+	 * Column label: {{LABEL}}
+	 * Fieldtype: FieldtypeText
+	 * Available variable: $value
+	 * Uses global config: $config['textMaxLength']
+	 *
+	 return function($value, $config = []) {
+		 // Kürzt den Text auf die maximale Länge aus der Config (Standard: 80)
+		 $maxLength = $config['textMaxLength'] ?? 80;
+		 $text = (string)$value;
+		 if (mb_strlen($text) > $maxLength) {
+			 $text = mb_substr($text, 0, $maxLength) . '…';
+		 }
+		 return htmlspecialchars($text);
+	 };
 	 */
 	public function createTemplateFile(string $table, string $label, string $realFieldName) {
 		// build slug & path
@@ -140,51 +158,7 @@ class TemplateGenerator {
 			: "Wrote fallback template file: {$file}";
 		wire('log')->save('ProcessDataTables', $message);
 	}  
-	/* public function createTemplateFile(string $label, string $realFieldName) {
-		 $slug = preg_replace('/[^a-z0-9]+/i', '_', trim(strtolower($label)));
-		 $slug = trim($slug, '_');
-		 $file = $this->templateDir . $slug . self::TEMPLATE_SUFFIX;
-	 
-		 if (is_file($file)) return;
-	 
-		 if (!is_dir($this->templateDir)) {
-			 mkdir($this->templateDir, 0755, true);
-			 wire('log')->save('ProcessDataTables', "Created template directory: {$this->templateDir}");
-		 }
-	 
-		 $real = $realFieldName;
-		 if ($real === 'meta') {
-			 $typeClass = 'WireData';
-		 } elseif (in_array($real, $this->standardProps, true)) {
-			 $typeClass = 'PageProperty';
-		 } elseif ($field = wire('fields')->get($real)) {
-			 $typeClass = $field->type->className;
-		 } else {
-			 // invalid, no stub
-			 return;
-		 }
-	 
-		 $stubPath = $this->fieldtypeStubDir . $typeClass . self::TEMPLATE_SUFFIX;
-		 if (is_file($stubPath)) {
-			 $raw = file_get_contents($stubPath);
-			 // replace tokens
-			 $raw = strtr($raw, [
-				 '{{FIELDNAME}}' => $realFieldName,
-				 '{{LABEL}}'     => $label,
-			 ]);
-			 file_put_contents($file, $raw);
-			 chmod($file, 0664);
-			 wire('log')->save('ProcessDataTables', "Copied fieldtype stub: {$stubPath} -> {$file}");
-			 return;
-		 }
-	 
-		 // 6) Fallback: generate Closure stub via getTemplateContent()
-		 $content = $this->getTemplateContent($typeClass, $realFieldName, $label);
-		 file_put_contents($file, $content);
-		 chmod($file, 0664);
-		 $message = ($typeClass === 'PageProperty') ? "Wrote PageProperty stub: {$file}" : "Wrote fallback template file: {$file}";
-		 wire('log')->save('ProcessDataTables', $message);
-	 }			*/
+
 	/**
 	 * Render the template file for a specific field
 	 *
@@ -217,29 +191,37 @@ class TemplateGenerator {
 	 /**
 	  * Delete the entire template directory and its contents
 	  */
-	 public function deleteTemplateDirectory() {
-		 if (!is_dir($this->templateDir)) {
-			 wire('log')->save('ProcessDataTables', "Template directory does not exist: " . $this->templateDir);
-			 return;
-		 }
-	 
-		 $files = glob($this->templateDir . '*');
-	 
-		 foreach ($files as $file) {
-			 if (is_file($file)) {
-				 unlink($file);
-				 wire('log')->save('ProcessDataTables', "Template file deleted: $file");
-			 }
-		 }
-	 
-		 // Remove the directory itself
-		 if (rmdir($this->templateDir)) {
-			 wire('log')->save('ProcessDataTables', "Template directory deleted: " . $this->templateDir);
-		 } else {
-			 wire('log')->save('ProcessDataTables', "Failed to delete template directory: " . $this->templateDir);
-		 }
-	 }
-	 
+	  public function deleteTemplateDirectory() {
+		  $dir = rtrim($this->templateDir, '/') . '/';
+		  if (!is_dir($dir)) {
+			  wire('log')->save('ProcessDataTables', "Template directory does not exist: {$dir}");
+			  return;
+		  }
+	  
+		  // Recursively delete all files and subdirectories
+		  $iterator = new RecursiveIteratorIterator(
+			  new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
+			  RecursiveIteratorIterator::CHILD_FIRST
+		  );
+	  
+		  foreach ($iterator as $item) {
+			  $path = $item->getRealPath();
+			  if ($item->isDir()) {
+				  rmdir($path);
+				  wire('log')->save('ProcessDataTables', "Removed directory: {$path}");
+			  } else {
+				  unlink($path);
+				  wire('log')->save('ProcessDataTables', "Removed file: {$path}");
+			  }
+		  }
+	  
+		  // Finally remove the root directory itself
+		  if (rmdir($dir)) {
+			  wire('log')->save('ProcessDataTables', "Template directory deleted: {$dir}");
+		  } else {
+			  wire('log')->save('ProcessDataTables', "Failed to delete template directory: {$dir}");
+		  }
+	  }	 
 	 /**
 	  * Creates PHP stub for a Page property or a fallback stubb for unknown types.
 	  *
