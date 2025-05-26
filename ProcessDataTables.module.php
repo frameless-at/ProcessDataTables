@@ -22,7 +22,7 @@ class ProcessDataTables extends Process {
 	public static function getModuleInfo() {
 		return [
 			'title'      => 'ProcessDataTables',
-			'version'    => '0.6.0',
+			'version'    => '0.6.1',
 			'summary'    => 'Displays customizable backend tables for any ProcessWire template with flexible column selection, per-field output templates, and global formatting options.',
 			'author'     => 'frameless Media',
 			'autoload'   => true,
@@ -70,135 +70,112 @@ class ProcessDataTables extends Process {
 	 * @return string HTML markup for the dropdown selector, table, and edit link.
 	 */
 	 
-	public function execute() {
-		if($this->input->post->ptables_action === 'import_config') {
-			$this->importConfigAndPages($_FILES['ptables_import_config'] ?? null);
-		}
-		if($this->input->post->ptables_action === 'import_templates') {
-			$this->importTemplates($_FILES['ptables_import_templates'] ?? null);
-		}
-		
-		if($this->input->get->ptables_action === 'export_config') {
-			return $this->exportConfig();
-		}
-		if($this->input->get->ptables_action === 'export_templates') {
-			return $this->exportColumnTemplates();
-		}
-		
-
-		// 1) Find the “DataTables” parent page
-		$parent = $this->pages->get("name=data-tables, include=all");
-		$addUrl = "/cms/page/add/?parent_id={$parent->id}";
-
-		if(!$parent->id) {
-			return $this->warning("DataTables parent page not found.");
-		}
-	
-		// 2) Fetch all published DataTable instances
-		$instances = $this->pages->find("parent={$parent->id}, status=published, sort=name");
-		if(!$instances->count()) {
-			return "<p>No DataTables defined yet. <a href='{$addUrl}'>Add one now</a> or import data</p>".$this->renderImportConfigForm();
-		}
-	
-		// 3) Determine active instance
-		$dtIdParam  = (int) $this->input->get->dt_id;
-		$ids        = $instances->each('id');
-		$activeId   = in_array($dtIdParam, $ids, true) ? $dtIdParam : $ids[0];
-		$activeInst = $this->pages->get($activeId);
-		$activeTitle = htmlentities($activeInst->title);
-		$exportConfigUrl = wire('page')->url . '?ptables_action=export_config';
-		$exportTemplUrl = wire('page')->url . '?ptables_action=export_templates';
-		$editlink = "/cms/page/edit/?id=" . $activeId;
-		
-		// 4) Build the uk-tab + dropdown selector
-		$html  = '<ul uk-tab class="uk-margin-small-bottom">';
-		
-		$html .= '<li>';
-		 
+public function execute() {
+		 if($this->input->post->ptables_action === 'import_config') {
+			 $this->importConfigAndPages($_FILES['ptables_import_config'] ?? null);
+		 }
+		 if($this->input->post->ptables_action === 'import_templates') {
+			 $this->importTemplates($_FILES['ptables_import_templates'] ?? null);
+		 }
+	 
+		 if($this->input->get->ptables_action === 'export_config') {
+			 return $this->exportConfig();
+		 }
+		 if($this->input->get->ptables_action === 'export_templates') {
+			 return $this->exportColumnTemplates();
+		 }
+	 
+		 // 1) Find the “DataTables” parent page
+		 $parent = $this->pages->get("name=data-tables, include=all");
+		 $addUrl = "/cms/page/add/?parent_id={$parent->id}";
+	 
+		 if(!$parent->id) {
+			 return $this->warning("DataTables parent page not found.");
+		 }
+	 
+		 // 2) Fetch all published DataTable instances
+		 $instances = $this->pages->find("parent={$parent->id}, status=published, sort=name");
+		 if(!$instances->count()) {
+			 return "<p>No DataTables defined yet. <a href='{$addUrl}'>Add one now</a></p>"
+				 . $this->buildImportExportForms('import');
+		 }
+	 
+		 // 3) Determine active instance
+		 $dtIdParam  = (int) $this->input->get->dt_id;
+		 $ids        = $instances->each('id');
+		 $activeId   = in_array($dtIdParam, $ids, true) ? $dtIdParam : $ids[0];
+		 $activeInst = $this->pages->get($activeId);
+		 $activeTitle = htmlentities($activeInst->title);
+		 $exportConfigUrl = wire('page')->url . '?ptables_action=export_config';
+		 $exportTemplUrl  = wire('page')->url . '?ptables_action=export_templates';
+		 $editlink        = "/cms/page/edit/?id=" . $activeId;
+	 
+		 // 4) Build the uk-tab + dropdown selector
+		 $html  = '<ul uk-tab class="uk-margin-small-bottom">';
+		 $html .= '<li>';
 		 if ($instances->count() > 1) {
-		  $html .= "<a href='?dt_id={$activeId}'>{$activeTitle}<span uk-icon=\"icon: triangle-down\"></span></a>";
-		  $html .= '<div uk-dropdown="mode: click">';
-		  $html .= '<ul class="uk-nav uk-dropdown-nav">';
-		  foreach($instances as $inst) {
-			  if($inst->id === $activeId) continue;
-			  $label = htmlentities($inst->title);
-			  $url   = "?dt_id={$inst->id}";
-			  $html .= "<li><a href='{$url}'>{$label}</a></li>";
-		  }
-		  $html .= '</ul></div>';
-	  	}
-		else		
-			$html .= "<a>{$activeTitle}</a>";
-
-		$html .= '<li>';
-		$html  .= "<li><a onclick=\"window.location.href='$editlink'\" href>Edit</a><li>";
-		$html  .= "<li><a class='uk-text-primary' href onclick=\"window.location.href='{$addUrl}'\">Add New</a></li>";
-		$html .= '</ul>';
-
-		// 5) Parse unified columns config
-		$columns = $this->parseColumns($activeInst->columns);
-	
-		// 6) Fetch pages to show
-		$dataTemplate = trim($activeInst->data_template);
-		$selector     = trim($activeInst->data_selector);
-		$selString    = "template={$dataTemplate}";
-		if($selector) $selString .= ", {$selector}";
-		$pagesToShow  = $this->pages->find($selString);
-	
-		// 7) Prepare the MarkupAdminDataTable
-		$table = $this->modules->get('MarkupAdminDataTable');
-		$table->setClass('uk-table-middle');
-		$table->setSortable(true);
-		$table->setEncodeEntities(false);	
-		
-		// Header
-		$header = [];
-		foreach($columns as $col) {
-			$header[] = htmlentities($col['label']);
-		}
-		$table->headerRow($header);
-		
-		// Data-Rows
-		$templateClosures = $this->loadColumnTemplates($columns, $activeInst->name);
-		
-		foreach($pagesToShow as $page) {
-			$row = [];
-			foreach($columns as $col) {
-				$slug = $col['slug'];
-				$value = $page->get($col['realName']);
-				$row[] = $templateClosures[$slug]($value);
-			}
-			$table->row($row);
-		}
-	
-		// 10) Render selector + table
-		$html .= $table->render();
-
-		// 11) Render Import/Export
-		// Configuration Section
-		// ---------------
-		$html .= '<details class="uk-margin-large-top">';  // "open" entfernen, wenn zugeklappt starten soll
-		$html .=   '<summary class="uk-legend">Module &amp; Datatables Configuration</summary>';
-		$html .=   '<div uk-grid class="uk-grid-small uk-child-width-1-2@m">';
-		$html .=     '<div>' . $this->renderImportConfigForm() . '</div>';
-		$html .=     '<div>' . $this->renderExportConfigForm() . '</div>';
-		$html .=   '</div>';
-		$html .= '</details>';
-		
-		// ---------------
-		// Templates Section
-		// ---------------
-		$html .= '<details class="uk-margin-small">';
-		$html .=   '<summary class="uk-legend">Datatables Template Files</summary>';
-		$html .=   '<div uk-grid class="uk-grid-small uk-child-width-1-2@m">';
-		$html .=     '<div>' . $this->renderImportTemplatesForm() . '</div>';
-		$html .=     '<div>' . $this->renderExportTemplatesForm() . '</div>';
-		$html .=   '</div>';
-		$html .= '</details>';		
-		
-		return $html;
-	}
-	
+			 $html .= "<a href='?dt_id={$activeId}'>{$activeTitle}<span uk-icon=\"icon: triangle-down\"></span></a>";
+			 $html .= '<div uk-dropdown="mode: click">';
+			 $html .= '<ul class="uk-nav uk-dropdown-nav">';
+			 foreach($instances as $inst) {
+				 if($inst->id === $activeId) continue;
+				 $label = htmlentities($inst->title);
+				 $url   = "?dt_id={$inst->id}";
+				 $html .= "<li><a href='{$url}'>{$label}</a></li>";
+			 }
+			 $html .= '</ul></div>';
+		 } else {
+			 $html .= "<a>{$activeTitle}</a>";
+		 }
+		 $html .= '</li>';
+		 $html .= "<li><a onclick=\"window.location.href='{$editlink}'\">Edit</a></li>";
+		 $html .= "<li><a class='uk-text-primary' onclick=\"window.location.href='{$addUrl}'\">Add New</a></li>";
+		 $html .= '</ul>';
+	 
+		 // 5) Parse unified columns config
+		 $columns = $this->parseColumns($activeInst->columns);
+	 
+		 // 6) Fetch pages to show
+		 $dataTemplate = trim($activeInst->data_template);
+		 $selector     = trim($activeInst->data_selector);
+		 $selString    = "template={$dataTemplate}";
+		 if($selector) $selString .= ", {$selector}";
+		 $pagesToShow  = $this->pages->find($selString);
+	 
+		 // 7) Prepare the MarkupAdminDataTable
+		 $table = $this->modules->get('MarkupAdminDataTable');
+		 $table->setClass('uk-table-middle');
+		 $table->setSortable(true);
+		 $table->setEncodeEntities(false);
+	 
+		 // Header
+		 $header = [];
+		 foreach($columns as $col) {
+			 $header[] = htmlentities($col['label']);
+		 }
+		 $table->headerRow($header);
+	 
+		 // Data-Rows
+		 $templateClosures = $this->loadColumnTemplates($columns, $activeInst->name);
+		 foreach($pagesToShow as $page) {
+			 $row = [];
+			 foreach($columns as $col) {
+				 $slug  = $col['slug'];
+				 $value = $page->get($col['realName']);
+				 $row[] = $templateClosures[$slug]($value);
+			 }
+			 $table->row($row);
+		 }
+	 
+		 // 10) Render selector + table
+		 $html .= $table->render();
+	 
+		 // 11) Render Import/Export with ProcessWire fieldsets
+		 $html .= $this->buildImportExportForms('export');
+	 
+		 return $html;
+	 }
+	 	
 	/**
 	 * Before any Page is saved, if it’s being created under our DataTables container,
 	 * force its template to “datatable” so the editor never has to choose it.
@@ -615,89 +592,154 @@ class ProcessDataTables extends Process {
 	 
 		 // kein Redirect – wir bleiben im normalen UI-Flow
 	 }
-	 /**
-	  * Renders the Import Config JSON form 
+
+/**
+	  * Builds the Import/Export UI as four discrete ProcessWire fieldsets.
 	  *
 	  * @return string
 	  */
- protected function renderImportConfigForm() {
-		$html = "
-			<form method='post' enctype='multipart/form-data' class='uk-form-stacked uk-margin-large'>
-  			<div class='uk-grid-small' uk-grid>
-				<div class='uk-width-auto'>
-	  			<label class='uk-form-label' for='ptables_import_config'>Import JSON Data</label>
-	  			<input class='uk-input' type='file' name='ptables_import_config' id='ptables_import_config' accept='.json'>
-				</div>
-				<div class='uk-width-auto'>
-	  			<label class='uk-form-label'>&nbsp;</label>
-	  			<button class='uk-button uk-button-primary' type='submit' name='ptables_action' value='import_config'>
+/*	 protected function buildImportExportForms(): string {
+		 $modules = wire('modules');
+	 
+		 // übergeordneter Wrapper für alle Fieldsets
+		 $wrapper = $modules->get('InputfieldWrapper');
+	 
+		 // ------------------------------------------------------
+		 // 1) Export Global & Table Configurations
+		 // ------------------------------------------------------
+		 $fsExportConfig = $modules->get('InputfieldFieldset');
+		 $fsExportConfig->label     = __('Export Global & Table Configurations');
+		 $fsExportConfig->collapsed = true; // standardmäßig zugeklappt
+		 // alleiniger Button in diesem Fieldset
+		 $btnExportConfig = $modules->get('InputfieldSubmit');
+		 $btnExportConfig->name  = 'ptables_action';
+		 $btnExportConfig->attr('value', 'export_config');
+		 $btnExportConfig->value = __('Export Config');
+		 $fsExportConfig->add($btnExportConfig);
+	 
+		 // ins Wrapper-Container
+		 $wrapper->add($fsExportConfig);
+	 
+		 // ------------------------------------------------------
+		 // 2) Import Global & Table Configurations
+		 // ------------------------------------------------------
+		 $fsImportConfig = $modules->get('InputfieldFieldset');
+		 $fsImportConfig->label     = __('Import Global & Table Configurations');
+		 $fsImportConfig->collapsed = true;
+		 // File-Input für JSON
+		 $fImportJson = $modules->get('InputfieldFile');
+		 $fImportJson->name       = 'ptables_import_config';
+		 $fImportJson->label      = __('Upload JSON File');
+		 $fImportJson->attr('accept', '.json');
+		 $fImportJson->extensions = 'json';
+		 $fsImportConfig->add($fImportJson);
+		 // Import-Button
+		 $btnImportConfig = $modules->get('InputfieldSubmit');
+		 $btnImportConfig->name  = 'ptables_action';
+		 $btnImportConfig->attr('value', 'import_config');
+		 $btnImportConfig->value = __('Import Config');
+		 $fsImportConfig->add($btnImportConfig);
+	 
+		 $wrapper->add($fsImportConfig);
+	 
+		 // ------------------------------------------------------
+		 // 3) Export Column Templates
+		 // ------------------------------------------------------
+		 $fsExportTpl = $modules->get('InputfieldFieldset');
+		 $fsExportTpl->label     = __('Export Column Templates');
+		 $fsExportTpl->collapsed = true;
+		 // alleiniger Button
+		 $btnExportTpl = $modules->get('InputfieldSubmit');
+		 $btnExportTpl->name  = 'ptables_action';
+		 $btnExportTpl->attr('value', 'export_templates');
+		 $btnExportTpl->value = __('Export Templates');
+		 $fsExportTpl->add($btnExportTpl);
+	 
+		 $wrapper->add($fsExportTpl);
+	 
+		 // ------------------------------------------------------
+		 // 4) Import Column Templates
+		 // ------------------------------------------------------
+		 $fsImportTpl = $modules->get('InputfieldFieldset');
+		 $fsImportTpl->label     = __('Import Column Templates');
+		 $fsImportTpl->collapsed = true;
+		 // File-Input für ZIP
+		 $fImportTpl = $modules->get('InputfieldFile');
+		 $fImportTpl->name       = 'ptables_import_templates';
+		 $fImportTpl->label      = __('Upload ZIP File');
+		 $fImportTpl->attr('accept', '.zip');
+		 $fImportTpl->extensions = 'zip';
+		 $fsImportTpl->add($fImportTpl);
+		 // Import-Button
+		 $btnImportTpl = $modules->get('InputfieldSubmit');
+		 $btnImportTpl->name  = 'ptables_action';
+		 $btnImportTpl->attr('value', 'import_templates');
+		 $btnImportTpl->value = __('Import Templates');
+		 $fsImportTpl->add($btnImportTpl);
+	 
+		 $wrapper->add($fsImportTpl);
+	 
+		 // alle vier Fieldsets rendern
+		 return $wrapper->render();
+	 } */
+
+protected function buildImportExportForms($kind): string {
+	$modules = wire('modules');
+	$wrapper = $modules->get('InputfieldWrapper');
+
+	$createFs = function(string $label, string $formHtml) use($modules) {
+		$fs = $modules->get('InputfieldFieldset');
+		$fs->label     = __($label);
+		$fs->collapsed = true;
+		$markup = $modules->get('InputfieldMarkup');
+		$markup->value = $formHtml;
+		$fs->add($markup);
+		return $fs;
+	};
+
+	// 1) Export Config (GET)
+	$form1 = "<form method=\"get\" class=\"uk-form-stacked\">
+				  <button type=\"submit\" name=\"ptables_action\" value=\"export_config\" class=\"uk-button uk-button-primary\">
+					Export Config
+				  </button>	<span class=\"uk-text-muted\" style=\"margin-left:1em;\">This will EXPORT the module settings and all your defined DataTables as a JSON file.</span>
+
+			  </form>";
+
+	// 2) Import Config (POST + multipart)
+	$form2 = "<form method=\"post\" enctype=\"multipart/form-data\" class=\"uk-form-stacked\">
+				  <input type=\"file\" style=\"border:none;padding-left:0;\" name=\"ptables_import_config\" id=\"ptables_import_config\" accept=\".json\" class=\"uk-input\" />
+				  <button type=\"submit\" name=\"ptables_action\" value=\"import_config\" class=\"uk-button uk-button-primary\">
 					Import Config & Tables
-	  			</button>
-				</div>
-  			</div>
-			</form>";
-	  
-		  return $html;
-	  }
-	/**
-	* Renders the Export Config JSON form 
-	*
-	* @return string
-	*/
-	protected function renderExportConfigForm() {
-	  $html = "
-		  <form method='get' class='uk-form-stacked uk-margin-small'>
-				<label class='uk-form-label' for='ptables_action'>Export global settings & configuration of all DataTables (JSON)</label>
-				<button class='uk-button uk-button-primary' type='submit' name='ptables_action' value='export_config'>
-				  Export Config & Tables
-				</button>
-		  </form>";
-	
-		return $html;
-	}	 
-	 /**
-	  * Renders the Import Templates ZIP form 
-	  *
-	  * @return string
-	  */
-	  protected function renderImportTemplatesForm() {
-		$html = "
-	  		<form method='post' enctype='multipart/form-data' class='uk-form-stacked uk-margin-small-bottom'>
-				<div class='uk-grid-small' uk-grid>
-		  		<div class='uk-width-auto'>
-					<label class='uk-form-label' for='ptables_import_templates'>Import column-templates (ZIP)</label>
-					<input class='uk-input' type='file' name='ptables_import_templates' id='ptables_import_templates' accept='.zip'>
-		  		</div>
-		  		<div class='uk-width-auto'>
-					<label class='uk-form-label'>&nbsp;</label>
-					<button class='uk-button uk-button-primary' type='submit' name='ptables_action' value='import_templates'>
-			  		Import Templates
-					</button>
-		  		</div>
-				</div>
-	  		</form>";
-	  
-		  return $html;
-	  }
-	  /**
-	  * Renders the Export Config JSON form 
-	  *
-	  * @return string
-	  */
-	  protected function renderExportTemplatesForm() {
-		$html = "
-			<form method='get' class='uk-form-stacked uk-margin-large'>
-				  <label class='uk-form-label' for='ptables_action'>Export column templates of all DataTables (ZIP)</label>
-				  <button class='uk-button uk-button-primary' type='submit' name='ptables_action' value='export_templates'>
+				  </button>	<span class=\"uk-text-muted\" style=\"margin-left:1em;\">This will IMPORT the module settings and all your defined DataTables from a JSON file.</span>
+			  </form>";
+
+	// 3) Export Templates (GET)
+	$form3 = "<form method=\"get\" class=\"uk-form-stacked\">
+				  <button type=\"submit\" name=\"ptables_action\" value=\"export_templates\" class=\"uk-button uk-button-primary\">
 					Export Templates
-				  </button>
-			</form>";
-	  
-		  return $html;
-	  }	 
-	  
-	 /**
-	  * Parse the unified "columns" textarea into an ordered list of column definitions.
+				  </button>	<span class=\"uk-text-muted\" style=\"margin-left:1em;\">This will EXPORT all column templates of all DataTables as a ZIP file.</span>
+			  </form>";
+
+	// 4) Import Templates (POST + multipart)
+	$form4 = "<form method=\"post\" enctype=\"multipart/form-data\" class=\"uk-form-stacked\">
+				  <input type=\"file\" style=\"border:none;padding-left:0;\" name=\"ptables_import_templates\" id=\"ptables_import_templates\" accept=\".zip\" class=\"uk-input\" />
+				  <button type=\"submit\" name=\"ptables_action\" value=\"import_templates\" class=\"uk-button uk-button-primary\">
+					Import Templates
+				  </button>	<span class=\"uk-text-muted\" style=\"margin-left:1em;\">This will IMPORT all column templates of all DataTables from a ZIP file.</span>
+			  </form>";
+
+	if($kind==='export')
+		$wrapper->add($createFs('Export Global & Table Configurations', $form1));
+	$wrapper->add($createFs('Import Global & Table Configurations', $form2));
+	if($kind==='export')
+		$wrapper->add($createFs('Export Column Templates', $form3));
+	$wrapper->add($createFs('Import Column Templates', $form4));
+
+	return $wrapper->render();
+} 
+
+		 
+	/** Parse the unified "columns" textarea into an ordered list of column definitions.
 	  *
 	  * Lines are either:
 	  *   FIELDNAME
