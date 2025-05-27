@@ -30,7 +30,7 @@ class TemplateGenerator {
 		$this->standardProps   = $standardProps;
 	}
 	
-/**
+	/**
 	 * Build full path for a column stub, namespaced by DataTable page name.
 	 *
 	 * @param string $table  Name (or slug) of the DataTable page

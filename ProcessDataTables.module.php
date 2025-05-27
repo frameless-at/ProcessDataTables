@@ -69,8 +69,7 @@ class ProcessDataTables extends Process {
 	 *
 	 * @return string HTML markup for the dropdown selector, table, and edit link.
 	 */
-	 
-public function execute() {
+	 public function execute() {
 		 if($this->input->post->ptables_action === 'import_config') {
 			 $this->importConfigAndPages($_FILES['ptables_import_config'] ?? null);
 		 }
@@ -144,7 +143,7 @@ public function execute() {
 	 
 		 // 7) Prepare the MarkupAdminDataTable
 		 $table = $this->modules->get('MarkupAdminDataTable');
-		 $table->setClass('uk-table-middle');
+		 $table->setClass('uk-table-middle uk-margin-large-bottom');
 		 $table->setSortable(true);
 		 $table->setEncodeEntities(false);
 	 
@@ -208,7 +207,7 @@ public function execute() {
 		}
 	}
 	
-/**
+	/**
 	 * Fires after Pages->save() on a datatable page; regenerates all column stubs.
 	 *
 	 * @param HookEvent $event
@@ -366,7 +365,7 @@ public function execute() {
 		];
 	}
 	
- /**
+    /**
 	 * Export module config + DataTable definitions as JSON.
 	 */
 	protected function exportConfig() {
@@ -450,14 +449,16 @@ public function execute() {
 		unlink($tmpFile);
 		exit;
 	}
-  /**
+	
+    /**
 	 * Handle import of module config plus DataTable-Pages from uploaded JSON.
 	 *
 	 * @param array|null $file  The $_FILES entry for the JSON upload
 	 * @return void
 	 */
 	protected function importConfigAndPages($file) {
-		// 1) Validierung
+		
+		// 1) validation
 		if(!wire('user')->hasPermission('data-table-view')) {
 			throw new WireException("Access denied");
 		}
@@ -465,16 +466,16 @@ public function execute() {
 			return $this->error("No valid JSON file uploaded.");
 		}
 	
-		// 2) JSON einlesen und prüfen
+		// 2) read and check JSON
 		$data = json_decode(file_get_contents($file['tmp_name']), true);
 		if(!isset($data['moduleConfig'], $data['dataTables'])) {
 			return $this->error("Invalid export JSON format.");
 		}
 	
-		// 3) Config speichern
+		// 3) save config
 		wire('modules')->saveConfig($this, $data['moduleConfig']);
 	
-		// 4) DataTable-Pages anlegen/aktualisieren
+		// 4) create/update DataTable
 		$this->importDataTablePages($data['dataTables']);
 	
 		// 5) Feedback
@@ -498,7 +499,7 @@ public function execute() {
 		}
 	
 		foreach($definitions as $def) {
-			// Suche oder neues Page-Objekt
+			// find or create datatable page if missing
 			$p = wire('pages')->get("parent={$parent->id}, name={$def['name']}");
 			if(!$p->id) {
 				$p = new Page();
@@ -506,7 +507,7 @@ public function execute() {
 				$p->parent   = $parent;
 				$p->name     = $def['name'];
 			}
-			// Felder setzen
+			// set fields
 			$p->title         = $def['title'] ?? $def['name'];
 			$p->of(true);
 			$p->data_template = $def['data_template'] ?? '';
@@ -523,7 +524,8 @@ public function execute() {
 	 * @return void
 	 */
 	 protected function importTemplates($file) {
-		 // 1) Berechtigungen prüfen
+		
+		 // 1) check permission
 		 if(!wire('user')->hasPermission('data-table-view')) {
 			 throw new WireException("Access denied");
 		 }
@@ -531,7 +533,7 @@ public function execute() {
 			 return $this->error("No valid ZIP file uploaded.");
 		 }
 	 
-		 // 2) ZIP entpacken
+		 // 2) extract ZIP
 		 $tmpDir = sys_get_temp_dir() . '/ptpls_import_' . uniqid();
 		 mkdir($tmpDir, 0755, true);
 		 $zip = new ZipArchive();
@@ -541,7 +543,7 @@ public function execute() {
 		 $zip->extractTo($tmpDir);
 		 $zip->close();
 	 
-		 // 3) WorkDir ermitteln (strip evtl. Top-Level-Ordner)
+		 // 3) strip unnecessary directories
 		 $entries = array_diff(scandir($tmpDir), ['.','..']);
 		 if(count($entries) === 1 && is_dir("$tmpDir/{$entries[0]}")) {
 			 $workDir = "$tmpDir/{$entries[0]}";
@@ -549,7 +551,7 @@ public function execute() {
 			 $workDir = $tmpDir;
 		 }
 	 
-		 // 4) Dateien kopieren & Berechtigungen setzen
+		 // 4) copy files & set permissions
 		 $baseDir = rtrim(self::$outputPath, '/') . '/';
 		 $iterator = new RecursiveIteratorIterator(
 			 new RecursiveDirectoryIterator($workDir, FilesystemIterator::SKIP_DOTS),
@@ -561,195 +563,108 @@ public function execute() {
 			 // a) Skip macOS metadata
 			 if (strpos($sourcePath, '__MACOSX') !== false) continue;
 	 
-			 // b) Zielpfad ermitteln
+			 // b) set destination dir 
 			 $relative = substr($sourcePath, strlen($workDir) + 1);
 			 $dest     = $baseDir . $relative;
 	 
 			 if ($item->isDir()) {
-				 // Verzeichnis anlegen
+				 // create dir
 				 if (!is_dir($dest)) {
 					 mkdir($dest, 0755, true);
 					 wire('log')->save('ProcessDataTables', "Created directory: {$dest}");
 				 }
 			 } else {
-				 // Datei sichern, dann kopieren
+				 // backup file and copy
 				 if (is_file($dest)) {
 					 rename($dest, dirname($dest) . '/_' . basename($dest));
 				 }
 				 copy($sourcePath, $dest);
 	 
-				 // PW FileTools chmod nutzen
+				 // set file permissions
 				 wire('files')->chmod($dest, '0770', false);
 				 wire('log')->save('ProcessDataTables', "Imported template file with 0644: {$dest}");
 			 }
 		 }
 	 
-		 // 5) Temporäres Verzeichnis löschen
+		 // 5) delete temp dir
 		 wire('files')->rmdir($tmpDir, true);
 	 
-		 // 6) Erfolgsmeldung
+		 // 6) Feedback
 		 $this->message("Templates imported successfully.");
-	 
-		 // kein Redirect – wir bleiben im normalen UI-Flow
-	 }
+	}
 
-/**
-	  * Builds the Import/Export UI as four discrete ProcessWire fieldsets.
-	  *
-	  * @return string
-	  */
-/*	 protected function buildImportExportForms(): string {
-		 $modules = wire('modules');
-	 
-		 // übergeordneter Wrapper für alle Fieldsets
-		 $wrapper = $modules->get('InputfieldWrapper');
-	 
-		 // ------------------------------------------------------
-		 // 1) Export Global & Table Configurations
-		 // ------------------------------------------------------
-		 $fsExportConfig = $modules->get('InputfieldFieldset');
-		 $fsExportConfig->label     = __('Export Global & Table Configurations');
-		 $fsExportConfig->collapsed = true; // standardmäßig zugeklappt
-		 // alleiniger Button in diesem Fieldset
-		 $btnExportConfig = $modules->get('InputfieldSubmit');
-		 $btnExportConfig->name  = 'ptables_action';
-		 $btnExportConfig->attr('value', 'export_config');
-		 $btnExportConfig->value = __('Export Config');
-		 $fsExportConfig->add($btnExportConfig);
-	 
-		 // ins Wrapper-Container
-		 $wrapper->add($fsExportConfig);
-	 
-		 // ------------------------------------------------------
-		 // 2) Import Global & Table Configurations
-		 // ------------------------------------------------------
-		 $fsImportConfig = $modules->get('InputfieldFieldset');
-		 $fsImportConfig->label     = __('Import Global & Table Configurations');
-		 $fsImportConfig->collapsed = true;
-		 // File-Input für JSON
-		 $fImportJson = $modules->get('InputfieldFile');
-		 $fImportJson->name       = 'ptables_import_config';
-		 $fImportJson->label      = __('Upload JSON File');
-		 $fImportJson->attr('accept', '.json');
-		 $fImportJson->extensions = 'json';
-		 $fsImportConfig->add($fImportJson);
-		 // Import-Button
-		 $btnImportConfig = $modules->get('InputfieldSubmit');
-		 $btnImportConfig->name  = 'ptables_action';
-		 $btnImportConfig->attr('value', 'import_config');
-		 $btnImportConfig->value = __('Import Config');
-		 $fsImportConfig->add($btnImportConfig);
-	 
-		 $wrapper->add($fsImportConfig);
-	 
-		 // ------------------------------------------------------
-		 // 3) Export Column Templates
-		 // ------------------------------------------------------
-		 $fsExportTpl = $modules->get('InputfieldFieldset');
-		 $fsExportTpl->label     = __('Export Column Templates');
-		 $fsExportTpl->collapsed = true;
-		 // alleiniger Button
-		 $btnExportTpl = $modules->get('InputfieldSubmit');
-		 $btnExportTpl->name  = 'ptables_action';
-		 $btnExportTpl->attr('value', 'export_templates');
-		 $btnExportTpl->value = __('Export Templates');
-		 $fsExportTpl->add($btnExportTpl);
-	 
-		 $wrapper->add($fsExportTpl);
-	 
-		 // ------------------------------------------------------
-		 // 4) Import Column Templates
-		 // ------------------------------------------------------
-		 $fsImportTpl = $modules->get('InputfieldFieldset');
-		 $fsImportTpl->label     = __('Import Column Templates');
-		 $fsImportTpl->collapsed = true;
-		 // File-Input für ZIP
-		 $fImportTpl = $modules->get('InputfieldFile');
-		 $fImportTpl->name       = 'ptables_import_templates';
-		 $fImportTpl->label      = __('Upload ZIP File');
-		 $fImportTpl->attr('accept', '.zip');
-		 $fImportTpl->extensions = 'zip';
-		 $fsImportTpl->add($fImportTpl);
-		 // Import-Button
-		 $btnImportTpl = $modules->get('InputfieldSubmit');
-		 $btnImportTpl->name  = 'ptables_action';
-		 $btnImportTpl->attr('value', 'import_templates');
-		 $btnImportTpl->value = __('Import Templates');
-		 $fsImportTpl->add($btnImportTpl);
-	 
-		 $wrapper->add($fsImportTpl);
-	 
-		 // alle vier Fieldsets rendern
-		 return $wrapper->render();
-	 } */
-
-protected function buildImportExportForms($kind): string {
-	$modules = wire('modules');
-	$wrapper = $modules->get('InputfieldWrapper');
-
-	$createFs = function(string $label, string $formHtml) use($modules) {
-		$fs = $modules->get('InputfieldFieldset');
-		$fs->label     = __($label);
-		$fs->collapsed = true;
-		$markup = $modules->get('InputfieldMarkup');
-		$markup->value = $formHtml;
-		$fs->add($markup);
-		return $fs;
-	};
-
-	// 1) Export Config (GET)
-	$form1 = "<form method=\"get\" class=\"uk-form-stacked\">
-				  <button type=\"submit\" name=\"ptables_action\" value=\"export_config\" class=\"uk-button uk-button-primary\">
-					Export Config
-				  </button>	<span class=\"uk-text-muted\" style=\"margin-left:1em;\">This will EXPORT the module settings and all your defined DataTables as a JSON file.</span>
-
-			  </form>";
-
-	// 2) Import Config (POST + multipart)
-	$form2 = "<form method=\"post\" enctype=\"multipart/form-data\" class=\"uk-form-stacked\">
-				  <input type=\"file\" style=\"border:none;padding-left:0;\" name=\"ptables_import_config\" id=\"ptables_import_config\" accept=\".json\" class=\"uk-input\" />
-				  <button type=\"submit\" name=\"ptables_action\" value=\"import_config\" class=\"uk-button uk-button-primary\">
-					Import Config & Tables
-				  </button>	<span class=\"uk-text-muted\" style=\"margin-left:1em;\">This will IMPORT the module settings and all your defined DataTables from a JSON file.</span>
-			  </form>";
-
-	// 3) Export Templates (GET)
-	$form3 = "<form method=\"get\" class=\"uk-form-stacked\">
-				  <button type=\"submit\" name=\"ptables_action\" value=\"export_templates\" class=\"uk-button uk-button-primary\">
-					Export Templates
-				  </button>	<span class=\"uk-text-muted\" style=\"margin-left:1em;\">This will EXPORT all column templates of all DataTables as a ZIP file.</span>
-			  </form>";
-
-	// 4) Import Templates (POST + multipart)
-	$form4 = "<form method=\"post\" enctype=\"multipart/form-data\" class=\"uk-form-stacked\">
-				  <input type=\"file\" style=\"border:none;padding-left:0;\" name=\"ptables_import_templates\" id=\"ptables_import_templates\" accept=\".zip\" class=\"uk-input\" />
-				  <button type=\"submit\" name=\"ptables_action\" value=\"import_templates\" class=\"uk-button uk-button-primary\">
-					Import Templates
-				  </button>	<span class=\"uk-text-muted\" style=\"margin-left:1em;\">This will IMPORT all column templates of all DataTables from a ZIP file.</span>
-			  </form>";
-
-	if($kind==='export')
-		$wrapper->add($createFs('Export Global & Table Configurations', $form1));
-	$wrapper->add($createFs('Import Global & Table Configurations', $form2));
-	if($kind==='export')
-		$wrapper->add($createFs('Export Column Templates', $form3));
-	$wrapper->add($createFs('Import Column Templates', $form4));
-
-	return $wrapper->render();
-} 
+	/**
+  	* Builds the Import/Export UI as four discrete ProcessWire fieldsets.
+  	*
+  	* @return string
+  	*/
+	protected function buildImportExportForms($kind): string {
+		$modules = wire('modules');
+		$wrapper = $modules->get('InputfieldWrapper');
+	
+		$createFs = function(string $label, string $formHtml) use($modules) {
+			$fs = $modules->get('InputfieldFieldset');
+			$fs->label     = __($label);
+			$fs->collapsed = true;
+			$markup = $modules->get('InputfieldMarkup');
+			$markup->value = $formHtml;
+			$fs->add($markup);
+			return $fs;
+		};
+	
+		// 1) Export Config (GET)
+		$form1 = "<form method=\"get\" class=\"uk-form-stacked\">
+				  	<button type=\"submit\" name=\"ptables_action\" value=\"export_config\" class=\"uk-button uk-button-primary ui-corner-all\">
+						Export Config
+				  	</button>	<span class=\"uk-text-muted\" style=\"margin-left:1em;\">This will EXPORT the module settings and all your defined DataTables as a JSON file.</span>
+	
+			  	</form>";
+	
+		// 2) Import Config (POST + multipart)
+		$form2 = "<form method=\"post\" enctype=\"multipart/form-data\" class=\"uk-form-stacked\">
+				  	<input type=\"file\" style=\"border:none;padding-left:0;\" name=\"ptables_import_config\" id=\"ptables_import_config\" accept=\".json\" class=\"uk-input\" />
+				  	<button type=\"submit\" name=\"ptables_action\" value=\"import_config\" class=\"uk-button uk-button-primary ui-corner-all\">
+						Import Config & Tables
+				  	</button>	<span class=\"uk-text-muted\" style=\"margin-left:1em;\">This will IMPORT the module settings and all your defined DataTables from a JSON file.</span>
+			  	</form>";
+	
+		// 3) Export Templates (GET)
+		$form3 = "<form method=\"get\" class=\"uk-form-stacked\">
+				  	<button type=\"submit\" name=\"ptables_action\" value=\"export_templates\" class=\"uk-button uk-button-primary ui-corner-all\">
+						Export Templates
+				  	</button>	<span class=\"uk-text-muted\" style=\"margin-left:1em;\">This will EXPORT all column templates of all DataTables as a ZIP file.</span>
+			  	</form>";
+	
+		// 4) Import Templates (POST + multipart)
+		$form4 = "<form method=\"post\" enctype=\"multipart/form-data\" class=\"uk-form-stacked\">
+				  	<input type=\"file\" style=\"border:none;padding-left:0;\" name=\"ptables_import_templates\" id=\"ptables_import_templates\" accept=\".zip\" class=\"uk-input\" />
+				  	<button type=\"submit\" name=\"ptables_action\" value=\"import_templates\" class=\"uk-button uk-button-primary ui-corner-all\">
+						Import Templates
+				  	</button>	<span class=\"uk-text-muted\" style=\"margin-left:1em;\">This will IMPORT all column templates of all DataTables from a ZIP file.</span>
+			  	</form>";
+	
+		if($kind==='export')
+			$wrapper->add($createFs('Export Global & Table Configurations', $form1));
+		$wrapper->add($createFs('Import Global & Table Configurations', $form2));
+		if($kind==='export')
+			$wrapper->add($createFs('Export Column Templates', $form3));
+		$wrapper->add($createFs('Import Column Templates', $form4));
+	
+		return $wrapper->render();
+	} 
 
 		 
 	/** Parse the unified "columns" textarea into an ordered list of column definitions.
-	  *
-	  * Lines are either:
-	  *   FIELDNAME
-	  *   LABEL=FIELDNAME
-	  *
-	  * FIELDNAME must be a real field, a core page property (self::$pageProperties) oder “meta”.
-	  *
-	  * @param string $raw
-	  * @return array
-	  */
+  	*
+  	* Lines are either:
+  	*   FIELDNAME
+  	*   LABEL=FIELDNAME
+  	*
+  	* FIELDNAME must be a real field, a core page property (self::$pageProperties) oder “meta”.
+  	*
+  	* @param string $raw
+  	* @return array
+  	*/
 	 protected function parseColumns(string $raw): array {
 	 	 $props = array_keys($this->getStandardPropertyLabels());
 		 $out   = [];
@@ -792,13 +707,13 @@ protected function buildImportExportForms($kind): string {
 	 }	
 	  
 	  
-	  /**
-	   * Loads all column templates as callables, in table-specific subfolder.
-	   *
-	   * @param array  $columns Output from parseColumns()
-	   * @param string $table   DataTable page name
-	   * @return array<string, callable>  [slug => function($value, $config): string]
-	   */
+	/**
+	* Loads all column templates as callables, in table-specific subfolder.
+	*
+	* @param array  $columns Output from parseColumns()
+	* @param string $table   DataTable page name
+	* @return array<string, callable>  [slug => function($value, $config): string]
+	*/
 	  protected function loadColumnTemplates(array $columns, string $table): array {
 		  // 1) read module config
 		  $config = wire('modules')->getModuleConfigData($this);
