@@ -139,11 +139,16 @@ class ProcessDataTables extends Process {
 		 $selector     = trim($activeInst->data_selector);
 		 $selString    = "template={$dataTemplate}";
 		 if($selector) $selString .= ", {$selector}";
-		 $pagesToShow  = $this->pages->find($selString);
-	 
+		 // — Pagination: limit/offset einführen —
+		 $pageNum     = max(1, (int) $this->input->get->dt_page);
+		 $config      = wire('modules')->getModuleConfigData($this);
+		 $perPage     = (int) ($config['rowsPerPage'] ?? 50);
+		 $offset      = ($pageNum - 1) * $perPage;
+		 $pagesToShow = $this->pages->find("{$selString}, start={$offset}, limit={$perPage}");
+		 	 
 		 // 7) Prepare the MarkupAdminDataTable
 		 $table = $this->modules->get('MarkupAdminDataTable');
-		 $table->setClass('uk-table-middle uk-margin-large-bottom');
+		 $table->setClass('uk-table-middle');
 		 $table->setSortable(true);
 		 $table->setEncodeEntities(false);
 	 
@@ -168,6 +173,21 @@ class ProcessDataTables extends Process {
 	 
 		 // 10) Render selector + table
 		 $html .= $table->render();
+	 
+	 	// — Manueller Pager —
+	 	// Gesamtzahl der Datensätze ermitteln
+	 	$totalItems = $this->pages->count($selString);
+	 	// Gesamtseiten berechnen
+	 	$totalPages = (int) ceil($totalItems / $perPage);
+	 	
+	 	// Pager-HTML bauen
+	 	$html .= '<ul class="uk-pagination" style="margin-left:0">';
+	 	for($i = 1; $i <= $totalPages; $i++) {
+		 	$activeClass = $i === $pageNum ? ' uk-active' : '';
+		 	$url         = "?dt_id={$activeId}&dt_page={$i}";
+		 	$html       .= "<li class='{$activeClass}'><a href='{$url}'>{$i}</a></li>";
+	 	}
+	 	$html .= '</ul>';
 	 
 		 // 11) Render Import/Export with ProcessWire fieldsets
 		 $html .= $this->buildImportExportForms('export');
@@ -601,7 +621,7 @@ class ProcessDataTables extends Process {
 	protected function buildImportExportForms($kind): string {
 		$modules = wire('modules');
 		$wrapper = $modules->get('InputfieldWrapper');
-	
+
 		$createFs = function(string $label, string $formHtml) use($modules) {
 			$fs = $modules->get('InputfieldFieldset');
 			$fs->label     = __($label);
@@ -650,7 +670,7 @@ class ProcessDataTables extends Process {
 			$wrapper->add($createFs('Export Column Templates', $form3));
 		$wrapper->add($createFs('Import Column Templates', $form4));
 	
-		return $wrapper->render();
+		return '<div class="uk-margin-large-top">'.$wrapper->render().'</div>';
 	} 
 
 		 
