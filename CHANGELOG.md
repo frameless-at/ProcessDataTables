@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.6.0] - 2025-05-27
+
+### Added
+- New import/export features for configurations and templates:
+  - Export and import module configuration and all DataTable definitions as JSON.
+  - Export and import all column templates as a ZIP archive.
+  - New methods: `exportConfig`, `exportColumnTemplates`, `importConfigAndPages`, `importTemplates` and corresponding admin area UI.
+- `ProcessDataTablesConfig::getDefaultConfig()` now provides a single source of default values for module configuration.
+
+### Changed
+- UI improvements in the admin area, especially regarding import/export options.
+- Configuration defaults are now consistently loaded from `getDefaultConfig()`.
+- Checkbox and text configuration handling unified.
+
+### Fixed
+- Field type mapping fix: `FieldTypeWireData.column.php` renamed to `WireData.column.php`.
+- The template function for `FieldtypeOptions` now correctly handles both single and multiple selection, returning the titles of selected options.
+
+### Removed
+- Legacy and commented-out code for template management removed.
+- Outdated template management methods replaced with recursive and more robust variants.
+
+---
+
+**Note:**  
+The new import/export functionality makes it much easier to transfer complete configuration and templates between installations.  
+All changes mainly affect the files `ProcessDataTables.module.php`, `ProcessDataTablesConfig.php`, `TemplateGenerator.php`, and the template stubs in the `fieldtype_templates/` directory.
+
+---
+
 ## [0.5.0] – 2025-05-25
 
 ### Added
