@@ -6,7 +6,7 @@
  * Handles the creation of output template files for selected fields for each DataTable.
  *
  * @author frameless Media
- * @version 0.6.0
+ * @version 0.6.2
  * @license MIT
  */
 
@@ -144,7 +144,7 @@ class TemplateGenerator {
 				'{{LABEL}}'     => $label,
 			]);
 			file_put_contents($file, $raw);
-			chmod($file, 0664);
+			chmod($file, 0770);
 			wire('log')->save('ProcessDataTables', "Copied fieldtype stub: {$stubPath} -> {$file}");
 			return;
 		}
@@ -152,7 +152,7 @@ class TemplateGenerator {
 		// fallback: generate closure stub
 		$content = $this->getTemplateContent($typeClass, $realFieldName, $label);
 		file_put_contents($file, $content);
-		chmod($file, 0664);
+		chmod($file, 0770);
 		$message = ($typeClass === 'PageProperty')
 			? "Wrote PageProperty stub: {$file}"
 			: "Wrote fallback template file: {$file}";

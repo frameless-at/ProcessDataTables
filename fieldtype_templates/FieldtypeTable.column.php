@@ -19,7 +19,7 @@ return function($value, $config = []) {
 	  $count   = $value->count();
 	  $modalId = 'modal_' . uniqid();
 	  if(!$count) return $out;
-	  
+  	
 	  $out = "<a href=\"#{$modalId}\" uk-toggle>{$count}</a>";
 
 	  // 3) table
