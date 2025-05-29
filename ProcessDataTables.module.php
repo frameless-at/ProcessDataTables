@@ -9,7 +9,7 @@ require_once __DIR__ . '/TemplateGenerator.php';
  * in a table within the admin area.
  *
  * @author frameless Media
- * @version 0.6.0
+ * @version 0.6.2
  * @license MIT
  */
  
@@ -22,7 +22,7 @@ class ProcessDataTables extends Process {
 	public static function getModuleInfo() {
 		return [
 			'title'      => 'ProcessDataTables',
-			'version'    => '0.6.1',
+			'version'    => '0.6.2',
 			'summary'    => 'Displays customizable backend tables for any ProcessWire template with flexible column selection, per-field output templates, and global formatting options.',
 			'author'     => 'frameless Media',
 			'autoload'   => true,
@@ -69,14 +69,14 @@ class ProcessDataTables extends Process {
 	 *
 	 * @return string HTML markup for the dropdown selector, table, and edit link.
 	 */
-	 public function execute() {
+public function execute() {
+		 // 1) Handle import/export actions
 		 if($this->input->post->ptables_action === 'import_config') {
 			 $this->importConfigAndPages($_FILES['ptables_import_config'] ?? null);
 		 }
 		 if($this->input->post->ptables_action === 'import_templates') {
 			 $this->importTemplates($_FILES['ptables_import_templates'] ?? null);
 		 }
-	 
 		 if($this->input->get->ptables_action === 'export_config') {
 			 return $this->exportConfig();
 		 }
@@ -84,69 +84,65 @@ class ProcessDataTables extends Process {
 			 return $this->exportColumnTemplates();
 		 }
 	 
-		 // 1) Find the “DataTables” parent page
+		 // 2) Find DataTables container
 		 $parent = $this->pages->get("name=data-tables, include=all");
-		 $addUrl = "/cms/page/add/?parent_id={$parent->id}";
-	 
 		 if(!$parent->id) {
 			 return $this->warning("DataTables parent page not found.");
 		 }
+		 $addUrl = "/cms/page/add/?parent_id={$parent->id}";
 	 
-		 // 2) Fetch all published DataTable instances
+		 // 3) Load DataTable instances
 		 $instances = $this->pages->find("parent={$parent->id}, status=published, sort=name");
 		 if(!$instances->count()) {
 			 return "<p>No DataTables defined yet. <a href='{$addUrl}'>Add one now</a></p>"
-				 . $this->buildImportExportForms('import');
+				  . $this->buildImportExportForms('import');
 		 }
 	 
-		 // 3) Determine active instance
+		 // 4) Determine active table
 		 $dtIdParam  = (int) $this->input->get->dt_id;
 		 $ids        = $instances->each('id');
 		 $activeId   = in_array($dtIdParam, $ids, true) ? $dtIdParam : $ids[0];
 		 $activeInst = $this->pages->get($activeId);
 		 $activeTitle = htmlentities($activeInst->title);
-		 $exportConfigUrl = wire('page')->url . '?ptables_action=export_config';
-		 $exportTemplUrl  = wire('page')->url . '?ptables_action=export_templates';
-		 $editlink        = "/cms/page/edit/?id=" . $activeId;
 	 
-		 // 4) Build the uk-tab + dropdown selector
+		 // 5) Build tab selector
 		 $html  = '<ul uk-tab class="uk-margin-small-bottom">';
 		 $html .= '<li>';
-		 if ($instances->count() > 1) {
-			 $html .= "<a href='?dt_id={$activeId}'>{$activeTitle}<span uk-icon=\"icon: triangle-down\"></span></a>";
-			 $html .= '<div uk-dropdown="mode: click">';
-			 $html .= '<ul class="uk-nav uk-dropdown-nav">';
+		 if($instances->count() > 1) {
+			 $html .= "<a href='{$parent->url}?dt_id={$activeId}'>{$activeTitle}<span uk-icon=\"icon: triangle-down\"></span></a>";
+			 $html .= '<div uk-dropdown="mode: click"><ul class="uk-nav uk-dropdown-nav">';
 			 foreach($instances as $inst) {
 				 if($inst->id === $activeId) continue;
 				 $label = htmlentities($inst->title);
-				 $url   = "?dt_id={$inst->id}";
+				 $url   = "{$parent->url}?dt_id={$inst->id}";
 				 $html .= "<li><a href='{$url}'>{$label}</a></li>";
 			 }
 			 $html .= '</ul></div>';
 		 } else {
 			 $html .= "<a>{$activeTitle}</a>";
 		 }
+		 $editLink = "/cms/page/edit/?id={$activeId}";
 		 $html .= '</li>';
-		 $html .= "<li><a onclick=\"window.location.href='{$editlink}'\">Edit</a></li>";
+		 $html .= "<li><a onclick=\"window.location.href='{$editLink}'\">Edit</a></li>";
 		 $html .= "<li><a class='uk-text-primary' onclick=\"window.location.href='{$addUrl}'\">Add New</a></li>";
 		 $html .= '</ul>';
 	 
-		 // 5) Parse unified columns config
-		 $columns = $this->parseColumns($activeInst->columns);
+		 // 6) Parse columns & fetch data
+		 $columns    = $this->parseColumns($activeInst->columns);
+		 $template   = trim($activeInst->data_template);
+		 $selector   = trim($activeInst->data_selector);
+		 $selString  = "template={$template}" . ($selector ? ", {$selector}" : '');
 	 
-		 // 6) Fetch pages to show
-		 $dataTemplate = trim($activeInst->data_template);
-		 $selector     = trim($activeInst->data_selector);
-		 $selString    = "template={$dataTemplate}";
-		 if($selector) $selString .= ", {$selector}";
-		 // — Pagination: limit/offset einführen —
-		 $pageNum     = max(1, (int) $this->input->get->dt_page);
-		 $config      = wire('modules')->getModuleConfigData($this);
-		 $perPage     = (int) ($config['rowsPerPage'] ?? 50);
-		 $offset      = ($pageNum - 1) * $perPage;
-		 $pagesToShow = $this->pages->find("{$selString}, start={$offset}, limit={$perPage}");
-		 	 
-		 // 7) Prepare the MarkupAdminDataTable
+		 // 7) Pagination settings
+		 //$pageNum    = max(1, (int) $this->input->get->dt_page);
+		 $pageNum = wire('input')->pageNum; 
+		 $config     = wire('modules')->getModuleConfigData($this);
+		 $perPage    = (int) ($config['rowsPerPage'] ?? 50);
+		 $offset     = ($pageNum - 1) * $perPage;
+		 //$pagesToShow = $this->pages->find("{$selString}, start={$offset}, limit={$perPage}");
+	 	$pagesToShow = $this->pages->find("{$selString}, limit={$perPage}");
+	 
+		 // 8) Render table via MarkupAdminDataTable
 		 $table = $this->modules->get('MarkupAdminDataTable');
 		 $table->setClass('uk-table-middle');
 		 $table->setSortable(true);
@@ -159,7 +155,7 @@ class ProcessDataTables extends Process {
 		 }
 		 $table->headerRow($header);
 	 
-		 // Data-Rows
+		 // Rows
 		 $templateClosures = $this->loadColumnTemplates($columns, $activeInst->name);
 		 foreach($pagesToShow as $page) {
 			 $row = [];
@@ -171,30 +167,37 @@ class ProcessDataTables extends Process {
 			 $table->row($row);
 		 }
 	 
-		 // 10) Render selector + table
 		 $html .= $table->render();
 	 
-	 	// — Manueller Pager —
-	 	// Gesamtzahl der Datensätze ermitteln
-	 	$totalItems = $this->pages->count($selString);
-	 	// Gesamtseiten berechnen
-	 	$totalPages = (int) ceil($totalItems / $perPage);
-	 	
-	 	// Pager-HTML bauen
-	 	$html .= '<ul class="uk-pagination" style="margin-left:0">';
-	 	for($i = 1; $i <= $totalPages; $i++) {
-		 	$activeClass = $i === $pageNum ? ' uk-active' : '';
-		 	$url         = "?dt_id={$activeId}&dt_page={$i}";
-		 	$html       .= "<li class='{$activeClass}'><a href='{$url}'>{$i}</a></li>";
-	 	}
-	 	$html .= '</ul>';
+	 	// 9) Pager via MarkupPagerNav
+		 $totalItems = $this->pages->count($selString);
+		 $pageNum    = wire('input')->pageNum; // picks up “/page3”
+		 $pager      = wire('modules')->get('MarkupPagerNav');
+		 
+		 // ** Preserve dt_id properly **
+		 $pager->setGetVars([
+		   'dt_id' => $activeId,
+		 ]);
+		 
+		 // Tell it how many items we have
+		 $pager->setTotalItems($totalItems);
+		 
+		 // Now render with UK pagination styles
+		 $html .= $pager->render($pagesToShow, [
+		   'listClass'    => 'uk-pagination',
+		   'numPageLinks' => 3,
+		   'prevText'     => '‹',
+		   'nextText'     => '›',
+  		 	'listMarkup' => "<ul class='uk-pagination' style='margin-left:0'>{out}</ul>",
+
+		 ]);
 	 
-		 // 11) Render Import/Export with ProcessWire fieldsets
+		 // 10) Import/Export UI
 		 $html .= $this->buildImportExportForms('export');
 	 
 		 return $html;
 	 }
-	 	
+	 	 	
 	/**
 	 * Before any Page is saved, if it’s being created under our DataTables container,
 	 * force its template to “datatable” so the editor never has to choose it.
@@ -663,12 +666,11 @@ class ProcessDataTables extends Process {
 				  	</button>	<span class=\"uk-text-muted\" style=\"margin-left:1em;\">This will IMPORT all column templates of all DataTables from a ZIP file.</span>
 			  	</form>";
 	
-		if($kind==='export')
-			$wrapper->add($createFs('Export Global & Table Configurations', $form1));
-		$wrapper->add($createFs('Import Global & Table Configurations', $form2));
-		if($kind==='export')
-			$wrapper->add($createFs('Export Column Templates', $form3));
 		$wrapper->add($createFs('Import Column Templates', $form4));
+		$wrapper->add($createFs('Import Global & Table Configurations', $form2));
+	  	if($kind==='export') $wrapper->add($createFs('Export Column Templates', $form3));
+		if($kind==='export') $wrapper->add($createFs('Export Global & Table Configurations', $form1));
+
 	
 		return '<div class="uk-margin-large-top">'.$wrapper->render().'</div>';
 	} 

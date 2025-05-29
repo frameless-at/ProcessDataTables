@@ -6,7 +6,7 @@
  * Simple config module for ProcessDataTables global settings.
  *
  * @author frameless Media
- * @version 0.6.1
+ * @version 0.6.2
  * @license MIT
  */
  
@@ -15,7 +15,7 @@ class ProcessDataTablesConfig extends ModuleConfig {
 	public static function getModuleInfo() {
 		return [
 			'title' => 'ProcessDataTables Config',
-			'version' => '0.6.1',
+			'version' => '0.6.2',
 			'summary' => 'Global configuration for ProcessDataTables module.',
 			'autoload' => false,
 			'singular' => true,
