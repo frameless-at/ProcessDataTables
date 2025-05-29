@@ -54,6 +54,21 @@ The module provides a global configuration interface where you can set formattin
 
 ---
 
+## New: Import/Export Configuration and Templates
+
+**Since v0.6.0**  
+You can now export and import the module configuration and all DataTable definitions as JSON, as well as all column templates as a ZIP archive.
+
+- **Export Configuration:**  
+  Use the **Export Config** button to download the current module configuration and DataTable settings as a JSON file.
+- **Import Configuration:**  
+  Use **Import Config** to load a previously exported JSON and restore your tables/settings.
+- **Export/Import Templates:**  
+  Use **Export Templates** and **Import Templates** to batch-transfer all column template files (as a ZIP archive) between installations.
+
+> **Note:** This makes migration, backup, and setup on new ProcessWire sites much easier.
+
+---
 
 ## Creating a DataTable
 
@@ -84,6 +99,11 @@ The module provides a global configuration interface where you can set formattin
 	   colors=variants
 	   ```
 
+**Supported Page Properties as Columns**
+You may use any ProcessWire page property (e.g. `id`, `name`, `created`, `modified`, `status, `parent`, `url`) as a column.  
+These are handled with unified logic and can be formatted just like custom fields.
+
+  
 4. **Save and View the Table**  
    You’ll now see your custom DataTable in the admin, with sortable columns and all default formatting (depending on fieldtypes) applied:
 
@@ -97,6 +117,22 @@ The module provides a global configuration interface where you can set formattin
 
 - For each column, a **PHP template stub** is auto-generated (in `/site/modules/ProcessDataTables/column_templates/`).
   The stubs are generated depending on the ProcessWire FieldType of the templates field you defined as a column.
+  
+  **Since v0.5.0**  
+  Column template stubs are organized in subfolders under `/site/modules/ProcessDataTables/column_templates/{datatable_name}/`.  
+  Each DataTable has its own subfolder for its templates. The stub file name is based on the column name.
+  
+  **Example:**  
+  `/site/modules/ProcessDataTables/column_templates/products/price.column.php`
+  
+  - To customize output for a column, edit the relevant file in its DataTable’s subfolder.
+  - Delete a stub to force regeneration with the next save.
+  
+  > **Upgrade Note:** Export and delete any old sub files directly under `column_templates/` before upgrading to avoid conflicts.
+  
+  All provided fieldtype templates are inline PHP return functions. Simply edit the relevant .column.php stub to customize the output for any field, and return the desired value or markup.
+  
+  ---
   Example of the stub created for `colors=variants`:
 ```
 <?php
