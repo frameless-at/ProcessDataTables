@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.6.2] - 2025-05-29
+
+### Added
+- Pagination functionality for DataTables, including backend logic and UI components.
+
+### Changed
+- Major refactor of the `fieldTypeTable` subroutine for improved maintainability and performance.
+
+### Fixed
+- General codebase cleanup and minor fixes.
+
+---
+
 ## [0.6.0] - 2025-05-27
 
 ### Added
