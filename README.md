@@ -98,11 +98,7 @@ You can now export and import the module configuration and all DataTable definit
 	   Shortcopy=product_description
 	   colors=variants
 	   ```
-
-**Supported Page Properties as Columns**
-You may use any ProcessWire page property (e.g. `id`, `name`, `created`, `modified`, `status, `parent`, `url`) as a column.  
-These are handled with unified logic and can be formatted just like custom fields.
-
+   - **Supported Page Properties as Columns** You may use any ProcessWire page property (e.g. `id`, `name`, `created`, `modified`, `status, `parent`, `url`) as a column. These are handled with unified logic and can be formatted just like custom fields.
   
 4. **Save and View the Table**  
    You’ll now see your custom DataTable in the admin, with sortable columns and all default formatting (depending on fieldtypes) applied:
