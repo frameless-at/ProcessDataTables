@@ -98,11 +98,7 @@ You can now export and import the module configuration and all DataTable definit
 	   Shortcopy=product_description
 	   colors=variants
 	   ```
-
-**Supported Page Properties as Columns**
-You may use any ProcessWire page property (e.g. `id`, `name`, `created`, `modified`, `status, `parent`, `url`) as a column.  
-These are handled with unified logic and can be formatted just like custom fields.
-
+   - **Supported Page Properties as Columns** You may use any ProcessWire page property (e.g. `id`, `name`, `created`, `modified`, `status, `parent`, `url`) as a column. These are handled with unified logic and can be formatted just like custom fields.
   
 4. **Save and View the Table**  
    You’ll now see your custom DataTable in the admin, with sortable columns and all default formatting (depending on fieldtypes) applied:
@@ -190,26 +186,14 @@ Quick and dirty, but it works:
 
 ## Uninstalling
 
-- When uninstalling the module via admin, all generated column templates and config fields are cleaned up. So maybe keep backups of the already configured column templates and backup table configurations in a text file. For example:
-```
-Products
---
-product
---
-product_image
-Product=id
-Shortcopy=product_description
-rockcommerce_net
-colors=variants
-```
-
+- When uninstalling the module via admin, all generated column templates and config fields are cleaned up. If you want to keep a Backup, just export your Configurations and column templates.
 
 ---
 
-
 ## Notes
 
-- Column template stubs are only generated if they do not already exist. Delete a stub to force regeneration.
+- Column template stubs are only generated if they do not already exist. Delete a stub or add/change a column label to force regeneration.
+- The default templates from which all column templates are auto created can be found in `/site/modules/ProcessDataTables/fieldtype_templates/`. 
 - This module does not touch your frontend. All customization is in the admin.
 
 ---
