@@ -194,7 +194,7 @@ public function execute() {
 	 
 		 // 10) Import/Export UI
 		 $html .= $this->buildImportExportForms('export');
-	 
+	 	$html .= "<p><a href='/cms/module/edit?name=ProcessDataTables&collapse_info=1'><i class='fa fa-gear pw-nav-icon fa-fw'></i>Settings</a>";
 		 return $html;
 	 }
 	 	 	
@@ -214,8 +214,13 @@ public function execute() {
 		$page->template = wire('templates')->get('datatable');
 		// done – ProcessWire will now save it with the right template
 	}
-
-	public function validateDataTemplate(HookEvent $event) {
+	
+	/**
+	 * Fires after Pages->save() on a datatable page; makes shure the new page created uses "data-table" as template
+	 *
+	 * @param HookEvent $event
+	 */
+	 public function validateDataTemplate(HookEvent $event) {
 		$page = $event->arguments(0);
 		if($page->template->name !== 'datatable') return;
 	
@@ -339,7 +344,9 @@ public function execute() {
 		 $templatesApi->save($tpl);
 	 }
 	 	 
-	/** Clean up on uninstall */
+   /**
+	 * Clean up on uninstall  
+	 */	
 	public function uninstall() {
 	// 1) Remove all pages using the 'datatable' template
 	$datatablePages = wire('pages')->find("template=datatable, include=all");
@@ -375,7 +382,9 @@ public function execute() {
 	parent::uninstall();
 	}
 
-	/** Standard property labels used as defaults */
+   /**
+	* Standard property labels used as defaults 
+    */
 	public function getStandardPropertyLabels() {
 		return [
 			'id'       => 'Page ID',
@@ -645,7 +654,7 @@ public function execute() {
 	
 		// 2) Import Config (POST + multipart)
 		$form2 = "<form method=\"post\" enctype=\"multipart/form-data\" class=\"uk-form-stacked\">
-				  	<input type=\"file\" style=\"border:none;padding-left:0;\" name=\"ptables_import_config\" id=\"ptables_import_config\" accept=\".json\" class=\"uk-input\" />
+				  	<input type=\"file\" style=\"border:none;padding-left:0; background-color:transparent\" name=\"ptables_import_config\" id=\"ptables_import_config\" accept=\".json\" class=\"uk-input\" />
 				  	<button type=\"submit\" name=\"ptables_action\" value=\"import_config\" class=\"uk-button uk-button-primary ui-corner-all\">
 						Import Config & Tables
 				  	</button>	<span class=\"uk-text-muted\" style=\"margin-left:1em;\">This will IMPORT the module settings and all your defined DataTables from a JSON file.</span>
@@ -660,7 +669,7 @@ public function execute() {
 	
 		// 4) Import Templates (POST + multipart)
 		$form4 = "<form method=\"post\" enctype=\"multipart/form-data\" class=\"uk-form-stacked\">
-				  	<input type=\"file\" style=\"border:none;padding-left:0;\" name=\"ptables_import_templates\" id=\"ptables_import_templates\" accept=\".zip\" class=\"uk-input\" />
+				  	<input type=\"file\" style=\"border:none;padding-left:0;background-color:transparent\" name=\"ptables_import_templates\" id=\"ptables_import_templates\" accept=\".zip\" class=\"uk-input\" />
 				  	<button type=\"submit\" name=\"ptables_action\" value=\"import_templates\" class=\"uk-button uk-button-primary ui-corner-all\">
 						Import Templates
 				  	</button>	<span class=\"uk-text-muted\" style=\"margin-left:1em;\">This will IMPORT all column templates of all DataTables from a ZIP file.</span>

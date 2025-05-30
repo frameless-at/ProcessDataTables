@@ -54,7 +54,7 @@ class TemplateGenerator {
 	 */
 	public function ensureTemplateDir() {
 		if (!is_dir($this->templateDir)) {
-			mkdir($this->templateDir, 0777, true);
+			mkdir($this->templateDir, 0770, true);
 		}
 	}
 
@@ -144,7 +144,7 @@ class TemplateGenerator {
 				'{{LABEL}}'     => $label,
 			]);
 			file_put_contents($file, $raw);
-			chmod($file, 0770);
+			chmod($file, 0660);
 			wire('log')->save('ProcessDataTables', "Copied fieldtype stub: {$stubPath} -> {$file}");
 			return;
 		}
@@ -152,7 +152,7 @@ class TemplateGenerator {
 		// fallback: generate closure stub
 		$content = $this->getTemplateContent($typeClass, $realFieldName, $label);
 		file_put_contents($file, $content);
-		chmod($file, 0770);
+		chmod($file, 0660);
 		$message = ($typeClass === 'PageProperty')
 			? "Wrote PageProperty stub: {$file}"
 			: "Wrote fallback template file: {$file}";
