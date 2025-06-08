@@ -197,7 +197,7 @@ public function execute() {
 	 
 		 // 10) Import/Export UI
 		 $html .= $this->buildImportExportForms('export');
-	 	$html .= "<p><a href='/cms/module/edit?name=ProcessDataTables&collapse_info=1'><i class='fa fa-gear pw-nav-icon fa-fw'></i>Settings</a>";
+	 	$html .= "<p><a href='".$adminUrl."module/edit?name=ProcessDataTables&collapse_info=1'><i class='fa fa-gear pw-nav-icon fa-fw'></i>Settings</a>";
 		 return $html;
 	 }
 	 	 	
