@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.6.3] - 2025-06-08
+
+### Fixed
+- Removed hardcoded URLs and replaced them with dynamic values.
+
+---
+
 ## [0.6.2] - 2025-05-29
 
 ### Added
