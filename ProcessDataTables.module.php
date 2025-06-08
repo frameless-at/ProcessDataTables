@@ -9,7 +9,7 @@ require_once __DIR__ . '/TemplateGenerator.php';
  * in a table within the admin area.
  *
  * @author frameless Media
- * @version 0.6.2
+ * @version 0.6.3
  * @license MIT
  */
  
@@ -22,7 +22,7 @@ class ProcessDataTables extends Process {
 	public static function getModuleInfo() {
 		return [
 			'title'      => 'ProcessDataTables',
-			'version'    => '0.6.2',
+			'version'    => '0.6.3',
 			'summary'    => 'Displays customizable backend tables for any ProcessWire template with flexible column selection, per-field output templates, and global formatting options.',
 			'author'     => 'frameless Media',
 			'autoload'   => true,
@@ -70,6 +70,8 @@ class ProcessDataTables extends Process {
 	 * @return string HTML markup for the dropdown selector, table, and edit link.
 	 */
 public function execute() {
+		$adminUrl = wire('config')->urls->admin; 
+
 		 // 1) Handle import/export actions
 		 if($this->input->post->ptables_action === 'import_config') {
 			 $this->importConfigAndPages($_FILES['ptables_import_config'] ?? null);
@@ -89,8 +91,8 @@ public function execute() {
 		 if(!$parent->id) {
 			 return $this->warning("DataTables parent page not found.");
 		 }
-		 $addUrl = "/cms/page/add/?parent_id={$parent->id}";
-	 
+		 $addUrl   = $adminUrl . "page/add/?parent_id={$parent->id}";
+
 		 // 3) Load DataTable instances
 		 $instances = $this->pages->find("parent={$parent->id}, status=published, sort=name");
 		 if(!$instances->count()) {
@@ -121,7 +123,8 @@ public function execute() {
 		 } else {
 			 $html .= "<a>{$activeTitle}</a>";
 		 }
-		 $editLink = "/cms/page/edit/?id={$activeId}";
+		 $editLink   = $adminUrl . "page/edit/?id={$activeId}";
+
 		 $html .= '</li>';
 		 $html .= "<li><a onclick=\"window.location.href='{$editLink}'\">Edit</a></li>";
 		 $html .= "<li><a class='uk-text-primary' onclick=\"window.location.href='{$addUrl}'\">Add New</a></li>";
