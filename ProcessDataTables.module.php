@@ -96,7 +96,9 @@ public function execute() {
 		 // 3) Load DataTable instances
 		 $instances = $this->pages->find("parent={$parent->id}, status=published, sort=name");
 		 if(!$instances->count()) {
-			 return "<p>No DataTables defined yet. <a href='{$addUrl}'>Add one now</a></p>"
+			 $msgEmpty = __('No DataTables defined yet.');
+			 $msgAdd = __('Add one now');
+			 return "<p>{$msgEmpty} <a href='{$addUrl}'></a> {$msgAdd}</p>"
 				  . $this->buildImportExportForms('import');
 		 }
 	 
@@ -124,10 +126,11 @@ public function execute() {
 			 $html .= "<a>{$activeTitle}</a>";
 		 }
 		 $editLink   = $adminUrl . "page/edit/?id={$activeId}";
-
+		 $editLabel  = __('Edit');
+		 $addLabel  = __('Add New');
 		 $html .= '</li>';
-		 $html .= "<li><a onclick=\"window.location.href='{$editLink}'\">Edit</a></li>";
-		 $html .= "<li><a class='uk-text-primary' onclick=\"window.location.href='{$addUrl}'\">Add New</a></li>";
+		 $html .= "<li><a onclick=\"window.location.href='{$editLink}'\">{$editLabel}</a></li>";
+		 $html .= "<li><a class='uk-text-primary' onclick=\"window.location.href='{$addUrl}'\">{$addLabel}</a></li>";
 		 $html .= '</ul>';
 	 
 		 // 6) Parse columns & fetch data
@@ -196,8 +199,9 @@ public function execute() {
 		 ]);
 	 
 		 // 10) Import/Export UI
+		 $settLabel = __('Settings');
 		 $html .= $this->buildImportExportForms('export');
-	 	$html .= "<p><a href='".$adminUrl."module/edit?name=ProcessDataTables&collapse_info=1'><i class='fa fa-gear pw-nav-icon fa-fw'></i>Settings</a>";
+	 	$html .= "<p><a href='".$adminUrl."module/edit?name=ProcessDataTables&collapse_info=1'><i class='fa fa-gear pw-nav-icon fa-fw'></i>{$settLabel}</a>";
 		 return $html;
 	 }
 	 	 	
@@ -636,10 +640,22 @@ public function execute() {
 	protected function buildImportExportForms($kind): string {
 		$modules = wire('modules');
 		$wrapper = $modules->get('InputfieldWrapper');
+		$confExpLabel = __('Export Global & Table Configurations');
+		$confExpBtnLabel = __('Export Config & Tables'); 
+		$confExpDesc = __('This will EXPORT the module settings and all your defined DataTables as a JSON file.');
+		$confImpLabel = __('Import Global & Table Configurations');
+		$confImpBtnLabel = __('Import Config & Tables');
+		$confImpDesc = __('This will IMPORT the module settings and all your defined DataTables from a JSON file.');
+		$tmplExpLabel = __('Export Column Templates');
+		$tmplExpBtnLabel = __('Export Templates');
+		$tmplExpDesc = __('This will EXPORT all column templates of all DataTables as a ZIP file.');
+		$tmplImpLabel = __('Import Column Templates');
+		$tmplImpBtnLabel = __('Import Templates');
+		$tmplImpDesc = __('This will IMPORT all column templates of all DataTables from a ZIP file.');
 
 		$createFs = function(string $label, string $formHtml) use($modules) {
 			$fs = $modules->get('InputfieldFieldset');
-			$fs->label     = __($label);
+			$fs->label     = $label;
 			$fs->collapsed = true;
 			$markup = $modules->get('InputfieldMarkup');
 			$markup->value = $formHtml;
@@ -650,8 +666,8 @@ public function execute() {
 		// 1) Export Config (GET)
 		$form1 = "<form method=\"get\" class=\"uk-form-stacked\">
 				  	<button type=\"submit\" name=\"ptables_action\" value=\"export_config\" class=\"uk-button uk-button-primary ui-corner-all\">
-						Export Config
-				  	</button>	<span class=\"uk-text-muted\" style=\"margin-left:1em;\">This will EXPORT the module settings and all your defined DataTables as a JSON file.</span>
+						{$confExpBtnLabel}
+				  	</button>	<span class=\"uk-text-muted\" style=\"margin-left:1em;\">{$confExpDesc}</span>
 	
 			  	</form>";
 	
@@ -659,29 +675,29 @@ public function execute() {
 		$form2 = "<form method=\"post\" enctype=\"multipart/form-data\" class=\"uk-form-stacked\">
 				  	<input type=\"file\" style=\"border:none;padding-left:0; background-color:transparent\" name=\"ptables_import_config\" id=\"ptables_import_config\" accept=\".json\" class=\"uk-input\" />
 				  	<button type=\"submit\" name=\"ptables_action\" value=\"import_config\" class=\"uk-button uk-button-primary ui-corner-all\">
-						Import Config & Tables
-				  	</button>	<span class=\"uk-text-muted\" style=\"margin-left:1em;\">This will IMPORT the module settings and all your defined DataTables from a JSON file.</span>
+						{$confImpBtnLabel}
+				  	</button>	<span class=\"uk-text-muted\" style=\"margin-left:1em;\">{$confImpDesc}</span>
 			  	</form>";
 	
 		// 3) Export Templates (GET)
 		$form3 = "<form method=\"get\" class=\"uk-form-stacked\">
 				  	<button type=\"submit\" name=\"ptables_action\" value=\"export_templates\" class=\"uk-button uk-button-primary ui-corner-all\">
-						Export Templates
-				  	</button>	<span class=\"uk-text-muted\" style=\"margin-left:1em;\">This will EXPORT all column templates of all DataTables as a ZIP file.</span>
+						{$tmplExpBtnLabel}
+				  	</button>	<span class=\"uk-text-muted\" style=\"margin-left:1em;\">{$tmplExpDesc}</span>
 			  	</form>";
 	
 		// 4) Import Templates (POST + multipart)
 		$form4 = "<form method=\"post\" enctype=\"multipart/form-data\" class=\"uk-form-stacked\">
 				  	<input type=\"file\" style=\"border:none;padding-left:0;background-color:transparent\" name=\"ptables_import_templates\" id=\"ptables_import_templates\" accept=\".zip\" class=\"uk-input\" />
 				  	<button type=\"submit\" name=\"ptables_action\" value=\"import_templates\" class=\"uk-button uk-button-primary ui-corner-all\">
-						Import Templates
-				  	</button>	<span class=\"uk-text-muted\" style=\"margin-left:1em;\">This will IMPORT all column templates of all DataTables from a ZIP file.</span>
+						{$tmplImpBtnLabel}
+				  	</button>	<span class=\"uk-text-muted\" style=\"margin-left:1em;\">{$tmplImpDesc}</span>
 			  	</form>";
 	
-		$wrapper->add($createFs('Import Column Templates', $form4));
-		$wrapper->add($createFs('Import Global & Table Configurations', $form2));
-	  	if($kind==='export') $wrapper->add($createFs('Export Column Templates', $form3));
-		if($kind==='export') $wrapper->add($createFs('Export Global & Table Configurations', $form1));
+		$wrapper->add($createFs($tmplImpLabel, $form4));
+		$wrapper->add($createFs($confImpLabel, $form2));
+	  	if($kind==='export') $wrapper->add($createFs($tmplExpLabel, $form3));
+		if($kind==='export') $wrapper->add($createFs($confExpLabel, $form1));
 
 	
 		return '<div class="uk-margin-large-top">'.$wrapper->render().'</div>';
