@@ -111,15 +111,15 @@ You can now export and import the module configuration and all DataTable definit
 
 ## Customizing Output (Column Templates)
 
-- For each column, a **PHP template stub** is auto-generated (in `/site/modules/ProcessDataTables/column_templates/`).
+- For each column, a **PHP template stub** is auto-generated (in `/site/assets/ProcessDataTables/column_templates/`).
   The stubs are generated depending on the ProcessWire FieldType of the templates field you defined as a column.
   
   **Since v0.5.0**  
-  Column template stubs are organized in subfolders under `/site/modules/ProcessDataTables/column_templates/{datatable_name}/`.  
+  Column template stubs are organized in subfolders under `/site/assets/ProcessDataTables/column_templates/{datatable_name}/`.  
   Each DataTable has its own subfolder for its templates. The stub file name is based on the column name.
   
   **Example:**  
-  `/site/modules/ProcessDataTables/column_templates/products/price.column.php`
+  `/site/assets/ProcessDataTables/column_templates/products/price.column.php`
   
   - To customize output for a column, edit the relevant file in its DataTable’s subfolder.
   - Delete a stub to force regeneration with the next save.
@@ -207,6 +207,6 @@ See the [LICENSE](LICENSE) file for details.
 
 ## Credits
 
-Developed by [frameless Media](https://framelessmedia.at/)
+Developed by [frameless Media](https://frameless.at/)
 
 ---
