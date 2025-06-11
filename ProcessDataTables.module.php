@@ -9,7 +9,7 @@ require_once __DIR__ . '/TemplateGenerator.php';
  * in a table within the admin area.
  *
  * @author frameless Media
- * @version 0.6.4
+ * @version 0.6.5
  * @license MIT
  */
  
@@ -22,7 +22,7 @@ class ProcessDataTables extends Process {
 	public static function getModuleInfo() {
 		return [
 			'title'      => 'ProcessDataTables',
-			'version'    => '0.6.4',
+			'version'    => '0.6.5',
 			'summary'    => 'Displays customizable backend tables for any ProcessWire template with flexible column selection, per-field output templates, and global formatting options.',
 			'author'     => 'frameless Media',
 			'autoload'   => true,
@@ -40,7 +40,10 @@ class ProcessDataTables extends Process {
 	public function __construct() {
 		parent::__construct();
 		if (!self::$outputPath) {
-			self::$outputPath = __DIR__ . '/column_templates/';
+			// site/assets/ProcessDataTables/column_templates/
+			$assetsPath      = wire('config')->paths->assets;
+			$moduleName      = 'ProcessDataTables';
+			self::$outputPath = "{$assetsPath}{$moduleName}/column_templates/";
 		}
 		$config = wire('modules')->getModuleConfigData($this);
 		$standardProps = array_keys($this->getStandardPropertyLabels());
@@ -98,7 +101,7 @@ public function execute() {
 		 if(!$instances->count()) {
 			 $msgEmpty = __('No DataTables defined yet.');
 			 $msgAdd = __('Add one now');
-			 return "<p>{$msgEmpty} <a href='{$addUrl}'></a> {$msgAdd}</p>"
+			 return "<p>{$msgEmpty} <a href='{$addUrl}'>{$msgAdd}</a></p>"
 				  . $this->buildImportExportForms('import');
 		 }
 	 
