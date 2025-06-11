@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.6.5] - 2025-06-11
+
+### Changed
+- Column Templates are now saved in /site/assets/ and will not get overwritten when upgrading the module.
+
+---
+
 ## [0.6.4] - 2025-06-10
 
 ### Fixed
